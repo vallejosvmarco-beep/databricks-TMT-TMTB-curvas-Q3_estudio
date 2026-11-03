@@ -1,0 +1,158 @@
+from pyspark import pipelines as dp
+from pyspark.sql import functions as F
+from pyspark.sql.window import Window
+
+"""
+Perfil solar de referencia para Costa Rica.
+
+Construye un perfil fotovoltaico real a partir de clientes que ya poseen
+generacion solar medida (OPERACION = 'Generacion_SGDA_Activo_kWh').
+
+El perfil se normaliza a un factor 0-1 para poder escalarlo por cliente
+segun su potencia pico dimensionada.
+
+Unidades (validadas en inspeccion de datos):
+  - METRICA = 'ENERGIA': kWh por intervalo de 15 minutos (ya es energia)
+  - METRICA = 'DEMANDA': kW promedio del intervalo
+  - ENERGIA = DEMANDA * 0.25 (confirmado por ratio en datos reales)
+  - Por tanto, Q3 de ENERGIA ya esta en kWh y NO requiere conversion.
+"""
+
+OUTPUT_CATALOG = spark.conf.get("project.output_catalog")
+OUTPUT_SCHEMA = spark.conf.get("project.output_schema")
+
+SOURCE_TABLE = f"{OUTPUT_CATALOG}.{OUTPUT_SCHEMA}.curvas_q3_mensuales"
+
+
+@dp.materialized_view(
+    name="perfil_solar_q3_referencia",
+    comment=(
+        "Perfil solar FV de referencia para Costa Rica, construido desde "
+        "clientes con generacion SGDA medida. Granularidad: "
+        "MES x TIPO_DIA x BLOQUE_15M. Incluye factor normalizado 0-1."
+    ),
+)
+def perfil_solar_q3_referencia():
+    """
+    Construye el perfil solar de referencia desde clientes con generacion
+    solar medida (Generacion_SGDA_Activo_kWh, METRICA=ENERGIA).
+    """
+    df = spark.read.table(SOURCE_TABLE)
+
+    # Filtrar solo generacion solar activa, metrica de energia (kWh por 15 min)
+    solar = (
+        df.filter(
+            (F.col("OPERACION") == "Generacion_SGDA_Activo_kWh")
+            & (F.col("METRICA") == "ENERGIA")
+            & F.col("Q3").isNotNull()
+        )
+        .select(
+            "ANIO",
+            "MES",
+            "TIPO_DIA",
+            "BLOQUE_15M",
+            "HORA",
+            "MINUTO",
+            F.col("Q3").alias("Q3_SOLAR_REFERENCIA"),
+        )
+    )
+
+    # Agregar promedio entre clientes solares por MES x TIPO_DIA x BLOQUE_15M
+    perfil = (
+        solar.groupBy(
+            "ANIO",
+            "MES",
+            "TIPO_DIA",
+            "BLOQUE_15M",
+            "HORA",
+            "MINUTO",
+        )
+        .agg(
+            F.avg("Q3_SOLAR_REFERENCIA").alias("Q3_SOLAR_REFERENCIA"),
+            F.count("*").alias("MUESTRAS_SOLARES"),
+        )
+    )
+
+    # Normalizar: FACTOR_SOLAR_NORMALIZADO = Q3_SOLAR / MAX(Q3_SOLAR)
+    # El maximo se calcula sobre todo el perfil (todos los bloques)
+    max_q3 = perfil.agg(F.max("Q3_SOLAR_REFERENCIA")).collect()[0][0]
+
+    perfil = perfil.withColumn(
+        "FACTOR_SOLAR_NORMALIZADO",
+        F.when(F.lit(max_q3) > 0, F.col("Q3_SOLAR_REFERENCIA") / F.lit(max_q3))
+        .otherwise(F.lit(0.0)),
+    )
+
+    # Determinar pico solar global
+    pico = (
+        perfil.filter(F.col("Q3_SOLAR_REFERENCIA") > 0)
+        .orderBy(F.col("Q3_SOLAR_REFERENCIA").desc())
+        .select("BLOQUE_15M", "HORA", "MINUTO")
+        .first()
+    )
+
+    if pico is not None:
+        bloque_pico = int(pico["BLOQUE_15M"])
+        hora_pico = int(pico["HORA"])
+        minuto_pico = int(pico["MINUTO"])
+    else:
+        bloque_pico = 48  # default: mediodia (12:00)
+        hora_pico = 12
+        minuto_pico = 0
+
+    # Pico mensual
+    pico_mensual = (
+        perfil.filter(F.col("Q3_SOLAR_REFERENCIA") > 0)
+        .groupBy("MES")
+        .agg(
+            F.max("Q3_SOLAR_REFERENCIA").alias("Q3_MAX_MES"),
+            F.first("BLOQUE_15M", ignorenulls=True).alias("BLOQUE_PICO_MES"),
+            F.first("HORA", ignorenulls=True).alias("HORA_PICO_MES"),
+            F.first("MINUTO", ignorenulls=True).alias("MINUTO_PICO_MES"),
+        )
+    )
+
+    # Determinar pico mensual correctamente (bloque donde ocurre el maximo)
+    w_pico = Window.partitionBy("MES").orderBy(F.col("Q3_SOLAR_REFERENCIA").desc())
+    pico_mensual = (
+        perfil.filter(F.col("Q3_SOLAR_REFERENCIA") > 0)
+        .withColumn("rn", F.row_number().over(w_pico))
+        .filter(F.col("rn") == 1)
+        .select(
+            "MES",
+            F.col("BLOQUE_15M").alias("BLOQUE_PICO_MES"),
+            F.col("HORA").alias("HORA_PICO_MES"),
+            F.col("MINUTO").alias("MINUTO_PICO_MES"),
+            F.col("Q3_SOLAR_REFERENCIA").alias("Q3_MAX_MES"),
+        )
+    )
+
+    # Unir perfil con picos mensuales
+    resultado = (
+        perfil.join(pico_mensual, "MES", "left")
+        .withColumn("BLOQUE_PICO_SOLAR_CR", F.lit(bloque_pico))
+        .withColumn("HORA_PICO_SOLAR_CR", F.lit(hora_pico))
+        .withColumn("MINUTO_PICO_SOLAR_CR", F.lit(minuto_pico))
+        .withColumn("MAX_Q3_SOLAR_GLOBAL", F.lit(max_q3))
+        .select(
+            "ANIO",
+            "MES",
+            "TIPO_DIA",
+            "BLOQUE_15M",
+            "HORA",
+            "MINUTO",
+            "Q3_SOLAR_REFERENCIA",
+            "FACTOR_SOLAR_NORMALIZADO",
+            "MUESTRAS_SOLARES",
+            "BLOQUE_PICO_SOLAR_CR",
+            "HORA_PICO_SOLAR_CR",
+            "MINUTO_PICO_SOLAR_CR",
+            "MAX_Q3_SOLAR_GLOBAL",
+            "BLOQUE_PICO_MES",
+            "HORA_PICO_MES",
+            "MINUTO_PICO_MES",
+            "Q3_MAX_MES",
+        )
+    )
+
+    return resultado

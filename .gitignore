@@ -1,0 +1,18 @@
+# Configuracion local (warehouse lookup por nombre)
+databricks.local.yml
+
+# Databricks bundle output
+.bundle/
+
+# Dashboard assets creados accidentalmente en workspace
+# (los archivos JSON fuente estan en dashboards/*.json)
+dashboards/*.lvdash.json
+dashboards/.placeholder
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# OS
+.DS_Store

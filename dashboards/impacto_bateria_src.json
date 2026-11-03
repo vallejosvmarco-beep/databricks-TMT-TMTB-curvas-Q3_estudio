@@ -1,0 +1,2741 @@
+{
+  "datasets": [
+    {
+      "name": "energia_carga_descarga",
+      "displayName": "Energia Cargada y Descargada por Escenario",
+      "queryLines": [
+        "SELECT\n",
+        "  ESCENARIO_BATERIA,\n",
+        "  'Cargada' AS TIPO,\n",
+        "  ENERGIA_CARGADA_GWH AS VALOR_GWH\n",
+        "FROM\n",
+        "  impacto_bateria_q3_global\n",
+        "UNION ALL\n",
+        "SELECT\n",
+        "  ESCENARIO_BATERIA,\n",
+        "  'Descargada' AS TIPO,\n",
+        "  ENERGIA_DESCARGADA_GWH AS VALOR_GWH\n",
+        "FROM\n",
+        "  impacto_bateria_q3_global\n",
+        "UNION ALL\n",
+        "SELECT\n",
+        "  ESCENARIO_BATERIA,\n",
+        "  'Excedente Solo Solar' AS TIPO,\n",
+        "  s.EXCEDENTE_SOLAR_GWH AS VALOR_GWH\n",
+        "FROM\n",
+        "  impacto_bateria_q3_global b CROSS JOIN impacto_solar_q3_global s\n",
+        "UNION ALL\n",
+        "SELECT\n",
+        "  ESCENARIO_BATERIA,\n",
+        "  'Excedente Neto (con Bateria)' AS TIPO,\n",
+        "  EXCEDENTE_NETO_GWH AS VALOR_GWH\n",
+        "FROM\n",
+        "  impacto_bateria_q3_global\n",
+        "ORDER BY\n",
+        "  ESCENARIO_BATERIA"
+      ],
+      "catalog": "workspace",
+      "schema": "oro_q3"
+    },
+    {
+      "name": "bateria_calidad",
+      "displayName": "Validaciones de Calidad Baterias",
+      "queryLines": [
+        "SELECT\n",
+        "  VALIDACION,\n",
+        "  DESCRIPCION,\n",
+        "  REGISTROS_AFECTADOS,\n",
+        "  TABLA,\n",
+        "  FECHA_VALIDACION\n",
+        "FROM\n",
+        "  impacto_bateria_q3_calidad"
+      ],
+      "catalog": "workspace",
+      "schema": "oro_q3"
+    },
+    {
+      "name": "bateria_global",
+      "displayName": "Resumen Global Baterias",
+      "queryLines": [
+        "SELECT\n",
+        "  ESCENARIO_BATERIA,\n",
+        "  CAPACIDAD_TOTAL_MWH,\n",
+        "  CONSUMO_BASE_GWH,\n",
+        "  GENERACION_SOLAR_GWH,\n",
+        "  ENERGIA_CARGADA_GWH,\n",
+        "  ENERGIA_DESCARGADA_GWH,\n",
+        "  DEMANDA_NETA_GWH,\n",
+        "  EXCEDENTE_NETO_GWH,\n",
+        "  REDUCCION_VENTAS_ADICIONAL_GWH,\n",
+        "  EFICIENCIA_CICLO_GLOBAL,\n",
+        "  PORCENTAJE_EXCEDENTE_NETO\n",
+        "FROM\n",
+        "  impacto_bateria_q3_global\n",
+        "ORDER BY\n",
+        "  CAPACIDAD_TOTAL_MWH"
+      ],
+      "catalog": "workspace",
+      "schema": "oro_q3"
+    },
+    {
+      "name": "duck_curve",
+      "displayName": "Curva Pato Comparativa Solar vs Bateria",
+      "queryLines": [
+        "SELECT\n",
+        "  'SOLO_SOLAR' AS ESCENARIO,\n",
+        "  BLOQUE_15M,\n",
+        "  HORA,\n",
+        "  MINUTO,\n",
+        "  AVG(CURVA_BASE) AS CURVA_BASE,\n",
+        "  AVG(GENERACION_SOLAR) AS GENERACION_SOLAR,\n",
+        "  AVG(CURVA_NETA) AS CURVA_NETA,\n",
+        "  AVG(EXCEDENTE_SOLAR) AS EXCEDENTE\n",
+        "FROM\n",
+        "  impacto_solar_q3_curva_pato\n",
+        "GROUP BY\n",
+        "  BLOQUE_15M,\n",
+        "  HORA,\n",
+        "  MINUTO\n",
+        "UNION ALL\n",
+        "SELECT\n",
+        "  ESCENARIO_BATERIA AS ESCENARIO,\n",
+        "  BLOQUE_15M,\n",
+        "  HORA,\n",
+        "  MINUTO,\n",
+        "  AVG(CURVA_BASE) AS CURVA_BASE,\n",
+        "  AVG(GENERACION_SOLAR) AS GENERACION_SOLAR,\n",
+        "  AVG(CURVA_NETA) AS CURVA_NETA,\n",
+        "  AVG(EXCEDENTE_NETO) AS EXCEDENTE\n",
+        "FROM\n",
+        "  impacto_bateria_q3_curva_pato\n",
+        "GROUP BY\n",
+        "  ESCENARIO_BATERIA,\n",
+        "  BLOQUE_15M,\n",
+        "  HORA,\n",
+        "  MINUTO"
+      ],
+      "catalog": "workspace",
+      "schema": "oro_q3"
+    },
+    {
+      "name": "soc_evolution",
+      "displayName": "Evolucion SOC por Bloque",
+      "queryLines": [
+        "SELECT\n",
+        "  ESCENARIO_BATERIA,\n",
+        "  BLOQUE_15M,\n",
+        "  HORA,\n",
+        "  MINUTO,\n",
+        "  AVG(SOC) AS SOC_PROMEDIO,\n",
+        "  AVG(ENERGIA_BATERIA_KWH) AS ENERGIA_BATERIA_PROMEDIO\n",
+        "FROM\n",
+        "  impacto_bateria_q3_intervalo\n",
+        "GROUP BY\n",
+        "  ESCENARIO_BATERIA,\n",
+        "  BLOQUE_15M,\n",
+        "  HORA,\n",
+        "  MINUTO\n",
+        "ORDER BY\n",
+        "  ESCENARIO_BATERIA,\n",
+        "  BLOQUE_15M"
+      ],
+      "catalog": "workspace",
+      "schema": "oro_q3"
+    },
+    {
+      "name": "nise_resumen",
+      "displayName": "Resumen por NISE (BATERIA_10)",
+      "queryLines": [
+        "SELECT\n",
+        "  NISE,\n",
+        "  PLAN,\n",
+        "  CAPACIDAD_BATERIA_KWH,\n",
+        "  CONSUMO_BASE_KWH,\n",
+        "  GENERACION_SOLAR_KWH,\n",
+        "  ENERGIA_CARGADA_KWH,\n",
+        "  ENERGIA_DESCARGADA_KWH,\n",
+        "  DEMANDA_NETA_KWH,\n",
+        "  EXCEDENTE_NETO_KWH,\n",
+        "  ENERGIA_NO_VENDIDA_ADICIONAL_KWH,\n",
+        "  EFICIENCIA_CICLO_BATERIA,\n",
+        "  PORCENTAJE_REDUCCION_ADICIONAL,\n",
+        "  PORCENTAJE_EXCEDENTE_NETO\n",
+        "FROM\n",
+        "  impacto_bateria_q3_cliente_resumen\n",
+        "WHERE\n",
+        "  ESCENARIO_BATERIA = 'BATERIA_10'\n",
+        "ORDER BY\n",
+        "  ENERGIA_DESCARGADA_KWH DESC"
+      ],
+      "catalog": "workspace",
+      "schema": "oro_q3"
+    },
+    {
+      "name": "marginal_impact",
+      "displayName": "Impacto Marginal por kWh",
+      "queryLines": [
+        "SELECT\n",
+        "  ESCENARIO_BATERIA,\n",
+        "  CAPACIDAD_TOTAL_MWH,\n",
+        "  REDUCCION_VENTAS_ADICIONAL_GWH,\n",
+        "  PORCENTAJE_EXCEDENTE_NETO,\n",
+        "  ROUND(\n",
+        "    REDUCCION_VENTAS_ADICIONAL_GWH * 1000 / CAPACIDAD_TOTAL_MWH,\n",
+        "    6\n",
+        "  ) AS REDUCCION_POR_KWH_INSTALADO\n",
+        "FROM\n",
+        "  impacto_bateria_q3_global\n",
+        "ORDER BY\n",
+        "  CAPACIDAD_TOTAL_MWH"
+      ],
+      "catalog": "workspace",
+      "schema": "oro_q3"
+    },
+    {
+      "name": "battery_state",
+      "displayName": "Estado Bateria por Bloque",
+      "queryLines": [
+        "SELECT\n",
+        "  BLOQUE_15M,\n",
+        "  ESTADO_BATERIA,\n",
+        "  COUNT(*) AS FRECUENCIA\n",
+        "FROM\n",
+        "  impacto_bateria_q3_intervalo\n",
+        "WHERE\n",
+        "  ESCENARIO_BATERIA = 'BATERIA_10'\n",
+        "GROUP BY\n",
+        "  BLOQUE_15M,\n",
+        "  ESTADO_BATERIA\n",
+        "ORDER BY\n",
+        "  BLOQUE_15M"
+      ],
+      "catalog": "workspace",
+      "schema": "oro_q3"
+    },
+    {
+      "name": "reduccion_ventas",
+      "displayName": "Reduccion Ventas Adicional",
+      "queryLines": [
+        "SELECT\n",
+        "  ESCENARIO_BATERIA,\n",
+        "  REDUCCION_VENTAS_ADICIONAL_GWH,\n",
+        "  PORCENTAJE_EXCEDENTE_NETO\n",
+        "FROM\n",
+        "  impacto_bateria_q3_global\n",
+        "ORDER BY\n",
+        "  CAPACIDAD_TOTAL_MWH"
+      ],
+      "catalog": "workspace",
+      "schema": "oro_q3"
+    },
+    {
+      "name": "monthly_trends",
+      "displayName": "Tendencias Mensuales Bateria",
+      "queryLines": [
+        "SELECT\n",
+        "  ESCENARIO_BATERIA,\n",
+        "  PERIODO_MES,\n",
+        "  SUM(ENERGIA_CARGADA_KWH) / 1000 AS ENERGIA_CARGADA_MWH,\n",
+        "  SUM(ENERGIA_DESCARGADA_KWH) / 1000 AS ENERGIA_DESCARGADA_MWH,\n",
+        "  SUM(EXCEDENTE_NETO_KWH) / 1000 AS EXCEDENTE_NETO_MWH\n",
+        "FROM\n",
+        "  impacto_bateria_q3_intervalo\n",
+        "GROUP BY\n",
+        "  ESCENARIO_BATERIA,\n",
+        "  PERIODO_MES\n",
+        "ORDER BY\n",
+        "  ESCENARIO_BATERIA,\n",
+        "  PERIODO_MES"
+      ],
+      "catalog": "workspace",
+      "schema": "oro_q3"
+    },
+    {
+      "name": "nise_top20",
+      "displayName": "Top 20 NISE por Energia Descargada",
+      "queryLines": [
+        "SELECT\n",
+        "  NISE,\n",
+        "  PLAN,\n",
+        "  CONSUMO_BASE_KWH,\n",
+        "  GENERACION_SOLAR_KWH,\n",
+        "  ENERGIA_CARGADA_KWH,\n",
+        "  ENERGIA_DESCARGADA_KWH,\n",
+        "  EXCEDENTE_NETO_KWH,\n",
+        "  EFICIENCIA_CICLO_BATERIA\n",
+        "FROM\n",
+        "  impacto_bateria_q3_cliente_resumen\n",
+        "WHERE\n",
+        "  ESCENARIO_BATERIA = 'BATERIA_10'\n",
+        "ORDER BY\n",
+        "  ENERGIA_DESCARGADA_KWH DESC\n",
+        "LIMIT 20"
+      ],
+      "catalog": "workspace",
+      "schema": "oro_q3"
+    },
+    {
+      "name": "nise_soc_det",
+      "displayName": "Detalle SOC por NISE y Escenario",
+      "queryLines": [
+        "SELECT\n",
+        "  NISE,\n",
+        "  ESCENARIO_BATERIA,\n",
+        "  BLOQUE_15M,\n",
+        "  AVG(SOC) AS SOC_PROMEDIO,\n",
+        "  AVG(ENERGIA_BATERIA_KWH) AS ENERGIA_BATERIA_KWH\n",
+        "FROM\n",
+        "  impacto_bateria_q3_intervalo\n",
+        "WHERE\n",
+        "  NISE = :nise_seleccionado\n",
+        "GROUP BY\n",
+        "  NISE,\n",
+        "  ESCENARIO_BATERIA,\n",
+        "  BLOQUE_15M\n",
+        "ORDER BY\n",
+        "  ESCENARIO_BATERIA,\n",
+        "  BLOQUE_15M"
+      ],
+      "parameters": [
+        {
+          "displayName": "NISE",
+          "keyword": "nise_seleccionado",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "1096374"
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "catalog": "workspace",
+      "schema": "oro_q3"
+    },
+    {
+      "name": "nise_mensual_det",
+      "displayName": "Resumen Mensual por NISE y Escenario",
+      "queryLines": [
+        "SELECT\n",
+        "  NISE,\n",
+        "  ESCENARIO_BATERIA,\n",
+        "  PERIODO_MES,\n",
+        "  SUM(ENERGIA_CARGA_KWH) AS ENERGIA_CARGADA_KWH,\n",
+        "  SUM(ENERGIA_DESCARGA_KWH) AS ENERGIA_DESCARGADA_KWH,\n",
+        "  SUM(EXCEDENTE_NETO_KWH) AS EXCEDENTE_NETO_KWH,\n",
+        "  SUM(DEMANDA_NETA_CON_BATERIA_KWH) AS DEMANDA_NETA_KWH\n",
+        "FROM\n",
+        "  impacto_bateria_q3_intervalo\n",
+        "WHERE\n",
+        "  NISE = :nise_seleccionado\n",
+        "GROUP BY\n",
+        "  NISE,\n",
+        "  ESCENARIO_BATERIA,\n",
+        "  PERIODO_MES\n",
+        "ORDER BY\n",
+        "  ESCENARIO_BATERIA,\n",
+        "  PERIODO_MES"
+      ],
+      "parameters": [
+        {
+          "displayName": "NISE",
+          "keyword": "nise_seleccionado",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "1096374"
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "catalog": "workspace",
+      "schema": "oro_q3"
+    },
+    {
+      "name": "nise_lista",
+      "displayName": "Lista de NISE Disponibles",
+      "queryLines": [
+        "SELECT DISTINCT\n",
+        "  NISE\n",
+        "FROM\n",
+        "  impacto_bateria_q3_intervalo\n",
+        "ORDER BY\n",
+        "  NISE"
+      ],
+      "catalog": "workspace",
+      "schema": "oro_q3"
+    },
+    {
+      "name": "comparacion_solar_bateria",
+      "displayName": "Comparacion Solar vs Bateria",
+      "queryLines": [
+        "SELECT\n",
+        "  'SOLO_SOLAR' AS ESCENARIO,\n",
+        "  0.0 AS CAPACIDAD_MWH,\n",
+        "  s.EXCEDENTE_SOLAR_GWH AS EXCEDENTE_GWH,\n",
+        "  s.ENERGIA_REMANENTE_GWH AS DEMANDA_NETA_GWH,\n",
+        "  s.AUTOCONSUMO_SOLAR_GWH AS REDUCCION_TOTAL_GWH,\n",
+        "  s.PORCENTAJE_REDUCCION_VENTAS\n",
+        "FROM\n",
+        "  impacto_solar_q3_global s\n",
+        "UNION ALL\n",
+        "SELECT\n",
+        "  b.ESCENARIO_BATERIA,\n",
+        "  b.CAPACIDAD_TOTAL_MWH,\n",
+        "  b.EXCEDENTE_NETO_GWH,\n",
+        "  b.DEMANDA_NETA_GWH,\n",
+        "  s.AUTOCONSUMO_SOLAR_GWH + b.REDUCCION_VENTAS_ADICIONAL_GWH,\n",
+        "  s.PORCENTAJE_REDUCCION_VENTAS + (b.REDUCCION_VENTAS_ADICIONAL_GWH / b.CONSUMO_BASE_GWH * 100)\n",
+        "FROM\n",
+        "  impacto_bateria_q3_global b CROSS JOIN impacto_solar_q3_global s\n",
+        "ORDER BY\n",
+        "  CAPACIDAD_MWH"
+      ],
+      "catalog": "workspace",
+      "schema": "oro_q3"
+    },
+    {
+      "name": "escenario_lista",
+      "displayName": "Lista Escenarios Bateria",
+      "queryLines": [
+        "SELECT\n",
+        "  'SOLO_SOLAR' AS ESCENARIO_BATERIA\n",
+        "UNION ALL\n",
+        "SELECT DISTINCT\n",
+        "  ESCENARIO_BATERIA\n",
+        "FROM\n",
+        "  impacto_bateria_q3_intervalo\n",
+        "ORDER BY\n",
+        "  ESCENARIO_BATERIA"
+      ],
+      "catalog": "workspace",
+      "schema": "oro_q3"
+    },
+    {
+      "name": "nise_carga_descarga_det",
+      "displayName": "Carga y Descarga por NISE",
+      "queryLines": [
+        "SELECT\n",
+        "  NISE,\n",
+        "  ESCENARIO_BATERIA,\n",
+        "  BLOQUE_15M,\n",
+        "  'Carga' AS TIPO,\n",
+        "  AVG(ENERGIA_CARGA_KWH) AS VALOR_KWH\n",
+        "FROM\n",
+        "  impacto_bateria_q3_intervalo\n",
+        "WHERE\n",
+        "  NISE = :nise_seleccionado\n",
+        "  AND ESCENARIO_BATERIA = :escenario_seleccionado\n",
+        "GROUP BY\n",
+        "  NISE,\n",
+        "  ESCENARIO_BATERIA,\n",
+        "  BLOQUE_15M\n",
+        "UNION ALL\n",
+        "SELECT\n",
+        "  NISE,\n",
+        "  ESCENARIO_BATERIA,\n",
+        "  BLOQUE_15M,\n",
+        "  'Descarga' AS TIPO,\n",
+        "  AVG(ENERGIA_DESCARGA_KWH) AS VALOR_KWH\n",
+        "FROM\n",
+        "  impacto_bateria_q3_intervalo\n",
+        "WHERE\n",
+        "  NISE = :nise_seleccionado\n",
+        "  AND ESCENARIO_BATERIA = :escenario_seleccionado\n",
+        "GROUP BY\n",
+        "  NISE,\n",
+        "  ESCENARIO_BATERIA,\n",
+        "  BLOQUE_15M\n",
+        "ORDER BY\n",
+        "  BLOQUE_15M,\n",
+        "  TIPO"
+      ],
+      "parameters": [
+        {
+          "displayName": "NISE",
+          "keyword": "nise_seleccionado",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "1096374"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "displayName": "Escenario Bateria",
+          "keyword": "escenario_seleccionado",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "BATERIA_10"
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "catalog": "workspace",
+      "schema": "oro_q3"
+    },
+    {
+      "name": "nise_curvas_det",
+      "displayName": "Curvas Completas por NISE",
+      "queryLines": [
+        "WITH base AS (\n",
+        "  SELECT\n",
+        "    BLOQUE_15M,\n",
+        "    AVG(DEMANDA_Q3_KWH) AS CONSUMO_BASE,\n",
+        "    AVG(GENERACION_SOLAR_SIMULADA_KWH) AS GEN_SOLAR,\n",
+        "    AVG(EXCEDENTE_SOLAR_KWH) AS EXC_SOLAR,\n",
+        "    AVG(DEMANDA_REMANENTE_KWH) AS DEM_REMANENTE,\n",
+        "    AVG(DEMANDA_NETA_CON_BATERIA_KWH) AS DEM_NETA_BAT,\n",
+        "    AVG(EXCEDENTE_NETO_KWH) AS EXC_NETO,\n",
+        "    AVG(ENERGIA_CARGA_KWH) AS CARGA,\n",
+        "    AVG(ENERGIA_DESCARGA_KWH) AS DESCARGA\n",
+        "  FROM\n",
+        "    impacto_bateria_q3_intervalo\n",
+        "  WHERE\n",
+        "    NISE = :nise_seleccionado\n",
+        "    AND ESCENARIO_BATERIA\n",
+        "      = CASE\n",
+        "        WHEN :escenario_seleccionado = 'SOLO_SOLAR' THEN 'BATERIA_2_5'\n",
+        "        ELSE :escenario_seleccionado\n",
+        "      END\n",
+        "  GROUP BY\n",
+        "    BLOQUE_15M\n",
+        ")\n",
+        "SELECT\n",
+        "  BLOQUE_15M,\n",
+        "  '1. Consumo Base' AS TIPO,\n",
+        "  CONSUMO_BASE AS VALOR_KWH\n",
+        "FROM\n",
+        "  base\n",
+        "UNION ALL\n",
+        "SELECT\n",
+        "  BLOQUE_15M,\n",
+        "  '2. Generacion Solar' AS TIPO,\n",
+        "  GEN_SOLAR\n",
+        "FROM\n",
+        "  base\n",
+        "UNION ALL\n",
+        "SELECT\n",
+        "  BLOQUE_15M,\n",
+        "  '3. Excedente Solar' AS TIPO,\n",
+        "  EXC_SOLAR\n",
+        "FROM\n",
+        "  base\n",
+        "UNION ALL\n",
+        "SELECT\n",
+        "  BLOQUE_15M,\n",
+        "  '4. Demanda Solo Solar' AS TIPO,\n",
+        "  DEM_REMANENTE\n",
+        "FROM\n",
+        "  base\n",
+        "UNION ALL\n",
+        "SELECT\n",
+        "  BLOQUE_15M,\n",
+        "  '5. Demanda Neta' AS TIPO,\n",
+        "  CASE\n",
+        "    WHEN :escenario_seleccionado = 'SOLO_SOLAR' THEN DEM_REMANENTE\n",
+        "    ELSE DEM_NETA_BAT\n",
+        "  END\n",
+        "FROM\n",
+        "  base\n",
+        "UNION ALL\n",
+        "SELECT\n",
+        "  BLOQUE_15M,\n",
+        "  '6. Excedente Neto' AS TIPO,\n",
+        "  CASE\n",
+        "    WHEN :escenario_seleccionado = 'SOLO_SOLAR' THEN EXC_SOLAR\n",
+        "    ELSE EXC_NETO\n",
+        "  END\n",
+        "FROM\n",
+        "  base\n",
+        "UNION ALL\n",
+        "SELECT\n",
+        "  BLOQUE_15M,\n",
+        "  '7. Carga Bateria' AS TIPO,\n",
+        "  CASE\n",
+        "    WHEN :escenario_seleccionado = 'SOLO_SOLAR' THEN 0.0\n",
+        "    ELSE CARGA\n",
+        "  END\n",
+        "FROM\n",
+        "  base\n",
+        "UNION ALL\n",
+        "SELECT\n",
+        "  BLOQUE_15M,\n",
+        "  '8. Descarga Bateria' AS TIPO,\n",
+        "  CASE\n",
+        "    WHEN :escenario_seleccionado = 'SOLO_SOLAR' THEN 0.0\n",
+        "    ELSE DESCARGA\n",
+        "  END\n",
+        "FROM\n",
+        "  base\n",
+        "ORDER BY\n",
+        "  BLOQUE_15M,\n",
+        "  TIPO"
+      ],
+      "parameters": [
+        {
+          "displayName": "NISE",
+          "keyword": "nise_seleccionado",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "1096374"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "displayName": "Escenario Bateria",
+          "keyword": "escenario_seleccionado",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "BATERIA_10"
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "catalog": "workspace",
+      "schema": "oro_q3"
+    },
+    {
+      "name": "red_curvas",
+      "displayName": "Curvas Red Completa",
+      "queryLines": [
+        "WITH base AS (\n",
+        "  SELECT\n",
+        "    BLOQUE_15M,\n",
+        "    AVG(DEMANDA_Q3_KWH) AS CONSUMO_BASE,\n",
+        "    AVG(GENERACION_SOLAR_SIMULADA_KWH) AS GEN_SOLAR,\n",
+        "    AVG(EXCEDENTE_SOLAR_KWH) AS EXC_SOLAR,\n",
+        "    AVG(DEMANDA_REMANENTE_KWH) AS DEM_REMANENTE,\n",
+        "    AVG(DEMANDA_NETA_CON_BATERIA_KWH) AS DEM_NETA_BAT,\n",
+        "    AVG(EXCEDENTE_NETO_KWH) AS EXC_NETO,\n",
+        "    AVG(ENERGIA_CARGA_KWH) AS CARGA,\n",
+        "    AVG(ENERGIA_DESCARGA_KWH) AS DESCARGA\n",
+        "  FROM\n",
+        "    impacto_bateria_q3_intervalo\n",
+        "  WHERE\n",
+        "    ESCENARIO_BATERIA\n",
+        "      = CASE\n",
+        "        WHEN :escenario_seleccionado = 'SOLO_SOLAR' THEN 'BATERIA_2_5'\n",
+        "        ELSE :escenario_seleccionado\n",
+        "      END\n",
+        "  GROUP BY\n",
+        "    BLOQUE_15M\n",
+        ")\n",
+        "SELECT\n",
+        "  BLOQUE_15M,\n",
+        "  '1. Consumo Base' AS TIPO,\n",
+        "  CONSUMO_BASE AS VALOR_KWH\n",
+        "FROM\n",
+        "  base\n",
+        "UNION ALL\n",
+        "SELECT\n",
+        "  BLOQUE_15M,\n",
+        "  '2. Generacion Solar' AS TIPO,\n",
+        "  GEN_SOLAR\n",
+        "FROM\n",
+        "  base\n",
+        "UNION ALL\n",
+        "SELECT\n",
+        "  BLOQUE_15M,\n",
+        "  '3. Excedente Solar' AS TIPO,\n",
+        "  EXC_SOLAR\n",
+        "FROM\n",
+        "  base\n",
+        "UNION ALL\n",
+        "SELECT\n",
+        "  BLOQUE_15M,\n",
+        "  '4. Demanda Solo Solar' AS TIPO,\n",
+        "  DEM_REMANENTE\n",
+        "FROM\n",
+        "  base\n",
+        "UNION ALL\n",
+        "SELECT\n",
+        "  BLOQUE_15M,\n",
+        "  '5. Demanda Neta' AS TIPO,\n",
+        "  CASE\n",
+        "    WHEN :escenario_seleccionado = 'SOLO_SOLAR' THEN DEM_REMANENTE\n",
+        "    ELSE DEM_NETA_BAT\n",
+        "  END\n",
+        "FROM\n",
+        "  base\n",
+        "UNION ALL\n",
+        "SELECT\n",
+        "  BLOQUE_15M,\n",
+        "  '6. Excedente Neto' AS TIPO,\n",
+        "  CASE\n",
+        "    WHEN :escenario_seleccionado = 'SOLO_SOLAR' THEN EXC_SOLAR\n",
+        "    ELSE EXC_NETO\n",
+        "  END\n",
+        "FROM\n",
+        "  base\n",
+        "UNION ALL\n",
+        "SELECT\n",
+        "  BLOQUE_15M,\n",
+        "  '7. Carga Bateria' AS TIPO,\n",
+        "  CASE\n",
+        "    WHEN :escenario_seleccionado = 'SOLO_SOLAR' THEN 0.0\n",
+        "    ELSE CARGA\n",
+        "  END\n",
+        "FROM\n",
+        "  base\n",
+        "UNION ALL\n",
+        "SELECT\n",
+        "  BLOQUE_15M,\n",
+        "  '8. Descarga Bateria' AS TIPO,\n",
+        "  CASE\n",
+        "    WHEN :escenario_seleccionado = 'SOLO_SOLAR' THEN 0.0\n",
+        "    ELSE DESCARGA\n",
+        "  END\n",
+        "FROM\n",
+        "  base\n",
+        "ORDER BY\n",
+        "  BLOQUE_15M,\n",
+        "  TIPO"
+      ],
+      "parameters": [
+        {
+          "displayName": "Escenario Bateria",
+          "keyword": "escenario_seleccionado",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "BATERIA_10"
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "catalog": "workspace",
+      "schema": "oro_q3"
+    }
+  ],
+  "pages": [
+    {
+      "name": "30894883",
+      "displayName": "Resumen Global",
+      "layout": [
+        {
+          "widget": {
+            "name": "duck_curve",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "duck_curve",
+                  "fields": [
+                    {
+                      "name": "ESCENARIO",
+                      "expression": "`ESCENARIO`"
+                    },
+                    {
+                      "name": "BLOQUE_15M",
+                      "expression": "`BLOQUE_15M`"
+                    },
+                    {
+                      "name": "avg(CURVA_NETA)",
+                      "expression": "AVG(`CURVA_NETA`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": "Curva de Pato: Solar vs Solar+Bateria"
+              },
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "BLOQUE_15M",
+                  "displayName": "BLOQUE_15M",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fieldName": "avg(CURVA_NETA)",
+                  "displayName": "CURVA_NETA",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "ESCENARIO",
+                  "displayName": "ESCENARIO",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "energia_carga_descarga",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "energia_carga_descarga",
+                  "fields": [
+                    {
+                      "name": "TIPO",
+                      "expression": "`TIPO`"
+                    },
+                    {
+                      "name": "ESCENARIO_BATERIA",
+                      "expression": "`ESCENARIO_BATERIA`"
+                    },
+                    {
+                      "name": "sum(VALOR_GWH)",
+                      "expression": "SUM(`VALOR_GWH`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": "Energia Cargada y Descargada por Escenario (GWh)"
+              },
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "ESCENARIO_BATERIA",
+                  "displayName": "ESCENARIO_BATERIA",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fieldName": "sum(VALOR_GWH)",
+                  "displayName": "VALOR_GWH",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "TIPO",
+                  "displayName": "TIPO",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 5,
+            "width": 6,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "excedente_neto",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "bateria_global",
+                  "fields": [
+                    {
+                      "name": "ESCENARIO_BATERIA",
+                      "expression": "`ESCENARIO_BATERIA`"
+                    },
+                    {
+                      "name": "sum(EXCEDENTE_NETO_GWH)",
+                      "expression": "SUM(`EXCEDENTE_NETO_GWH`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": "Excedente Neto por Escenario (GWh)"
+              },
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "ESCENARIO_BATERIA",
+                  "displayName": "ESCENARIO_BATERIA",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fieldName": "sum(EXCEDENTE_NETO_GWH)",
+                  "displayName": "EXCEDENTE_NETO_GWH",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "ESCENARIO_BATERIA",
+                  "displayName": "ESCENARIO_BATERIA",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 5,
+            "width": 6,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "resumen_global",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "bateria_global",
+                  "fields": [
+                    {
+                      "name": "ESCENARIO_BATERIA",
+                      "expression": "`ESCENARIO_BATERIA`"
+                    },
+                    {
+                      "name": "CAPACIDAD_TOTAL_MWH",
+                      "expression": "`CAPACIDAD_TOTAL_MWH`"
+                    },
+                    {
+                      "name": "CONSUMO_BASE_GWH",
+                      "expression": "`CONSUMO_BASE_GWH`"
+                    },
+                    {
+                      "name": "GENERACION_SOLAR_GWH",
+                      "expression": "`GENERACION_SOLAR_GWH`"
+                    },
+                    {
+                      "name": "ENERGIA_CARGADA_GWH",
+                      "expression": "`ENERGIA_CARGADA_GWH`"
+                    },
+                    {
+                      "name": "ENERGIA_DESCARGADA_GWH",
+                      "expression": "`ENERGIA_DESCARGADA_GWH`"
+                    },
+                    {
+                      "name": "DEMANDA_NETA_GWH",
+                      "expression": "`DEMANDA_NETA_GWH`"
+                    },
+                    {
+                      "name": "EXCEDENTE_NETO_GWH",
+                      "expression": "`EXCEDENTE_NETO_GWH`"
+                    },
+                    {
+                      "name": "REDUCCION_VENTAS_ADICIONAL_GWH",
+                      "expression": "`REDUCCION_VENTAS_ADICIONAL_GWH`"
+                    },
+                    {
+                      "name": "EFICIENCIA_CICLO_GLOBAL",
+                      "expression": "`EFICIENCIA_CICLO_GLOBAL`"
+                    },
+                    {
+                      "name": "PORCENTAJE_EXCEDENTE_NETO",
+                      "expression": "`PORCENTAJE_EXCEDENTE_NETO`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": "Resumen Global por Escenario"
+              },
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "ESCENARIO_BATERIA"
+                  },
+                  {
+                    "fieldName": "CAPACIDAD_TOTAL_MWH"
+                  },
+                  {
+                    "fieldName": "CONSUMO_BASE_GWH"
+                  },
+                  {
+                    "fieldName": "GENERACION_SOLAR_GWH"
+                  },
+                  {
+                    "fieldName": "ENERGIA_CARGADA_GWH"
+                  },
+                  {
+                    "fieldName": "ENERGIA_DESCARGADA_GWH"
+                  },
+                  {
+                    "fieldName": "DEMANDA_NETA_GWH"
+                  },
+                  {
+                    "fieldName": "EXCEDENTE_NETO_GWH"
+                  },
+                  {
+                    "fieldName": "REDUCCION_VENTAS_ADICIONAL_GWH"
+                  },
+                  {
+                    "fieldName": "EFICIENCIA_CICLO_GLOBAL"
+                  },
+                  {
+                    "fieldName": "PORCENTAJE_EXCEDENTE_NETO"
+                  }
+                ]
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 9,
+            "width": 12,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "calidad",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "bateria_calidad",
+                  "fields": [
+                    {
+                      "name": "VALIDACION",
+                      "expression": "`VALIDACION`"
+                    },
+                    {
+                      "name": "DESCRIPCION",
+                      "expression": "`DESCRIPCION`"
+                    },
+                    {
+                      "name": "REGISTROS_AFECTADOS",
+                      "expression": "`REGISTROS_AFECTADOS`"
+                    },
+                    {
+                      "name": "TABLA",
+                      "expression": "`TABLA`"
+                    },
+                    {
+                      "name": "FECHA_VALIDACION",
+                      "expression": "`FECHA_VALIDACION`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": "Validaciones de Calidad - Modelo de Baterias"
+              },
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "VALIDACION"
+                  },
+                  {
+                    "fieldName": "DESCRIPCION"
+                  },
+                  {
+                    "fieldName": "REGISTROS_AFECTADOS"
+                  },
+                  {
+                    "fieldName": "TABLA"
+                  },
+                  {
+                    "fieldName": "FECHA_VALIDACION"
+                  }
+                ]
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 13,
+            "width": 12,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "reduccion_ventas",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "reduccion_ventas",
+                  "fields": [
+                    {
+                      "name": "ESCENARIO_BATERIA",
+                      "expression": "`ESCENARIO_BATERIA`"
+                    },
+                    {
+                      "name": "sum(REDUCCION_VENTAS_ADICIONAL_GWH)",
+                      "expression": "SUM(`REDUCCION_VENTAS_ADICIONAL_GWH`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": "Reduccion Ventas Adicional por Escenario"
+              },
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "ESCENARIO_BATERIA",
+                  "displayName": "ESCENARIO_BATERIA",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fieldName": "sum(REDUCCION_VENTAS_ADICIONAL_GWH)",
+                  "displayName": "REDUCCION_VENTAS_ADICIONAL_GWH",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "ESCENARIO_BATERIA",
+                  "displayName": "ESCENARIO_BATERIA",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 17,
+            "width": 12,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "comparacion_excedente",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "comparacion_solar_bateria",
+                  "fields": [
+                    {
+                      "name": "ESCENARIO",
+                      "expression": "`ESCENARIO`"
+                    },
+                    {
+                      "name": "sum(EXCEDENTE_GWH)",
+                      "expression": "SUM(`EXCEDENTE_GWH`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": "Excedente: Solo Solar vs Solar+Bateria"
+              },
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "ESCENARIO",
+                  "displayName": "ESCENARIO",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fieldName": "sum(EXCEDENTE_GWH)",
+                  "displayName": "EXCEDENTE_GWH",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "ESCENARIO",
+                  "displayName": "ESCENARIO",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 21,
+            "width": 6,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "comparacion_reduccion",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "comparacion_solar_bateria",
+                  "fields": [
+                    {
+                      "name": "ESCENARIO",
+                      "expression": "`ESCENARIO`"
+                    },
+                    {
+                      "name": "sum(REDUCCION_TOTAL_GWH)",
+                      "expression": "SUM(`REDUCCION_TOTAL_GWH`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": "Reduccion Total: Solo Solar vs Solar+Bateria"
+              },
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "ESCENARIO",
+                  "displayName": "ESCENARIO",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fieldName": "sum(REDUCCION_TOTAL_GWH)",
+                  "displayName": "REDUCCION_TOTAL_GWH",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "ESCENARIO",
+                  "displayName": "ESCENARIO",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 21,
+            "width": 6,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "comparacion_tabla",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "comparacion_solar_bateria",
+                  "fields": [
+                    {
+                      "name": "ESCENARIO",
+                      "expression": "`ESCENARIO`"
+                    },
+                    {
+                      "name": "CAPACIDAD_MWH",
+                      "expression": "`CAPACIDAD_MWH`"
+                    },
+                    {
+                      "name": "EXCEDENTE_GWH",
+                      "expression": "`EXCEDENTE_GWH`"
+                    },
+                    {
+                      "name": "DEMANDA_NETA_GWH",
+                      "expression": "`DEMANDA_NETA_GWH`"
+                    },
+                    {
+                      "name": "REDUCCION_TOTAL_GWH",
+                      "expression": "`REDUCCION_TOTAL_GWH`"
+                    },
+                    {
+                      "name": "PORCENTAJE_REDUCCION_VENTAS",
+                      "expression": "`PORCENTAJE_REDUCCION_VENTAS`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": "Comparacion Completa: Solar vs Bateria"
+              },
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "ESCENARIO"
+                  },
+                  {
+                    "fieldName": "CAPACIDAD_MWH"
+                  },
+                  {
+                    "fieldName": "EXCEDENTE_GWH"
+                  },
+                  {
+                    "fieldName": "DEMANDA_NETA_GWH"
+                  },
+                  {
+                    "fieldName": "REDUCCION_TOTAL_GWH"
+                  },
+                  {
+                    "fieldName": "PORCENTAJE_REDUCCION_VENTAS"
+                  }
+                ]
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 25,
+            "width": 12,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "red_escenario_filter",
+            "queries": [
+              {
+                "name": "dashboards/01f1b3997dcf182599c66060ff507d6b/datasets/01f1b3a3225314889463ef5c4fa28597_ESCENARIO_BATERIA",
+                "query": {
+                  "datasetName": "escenario_lista",
+                  "fields": [
+                    {
+                      "name": "ESCENARIO_BATERIA",
+                      "expression": "`ESCENARIO_BATERIA`"
+                    },
+                    {
+                      "name": "ESCENARIO_BATERIA_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f1b3997dcf182599c66060ff507d6b/datasets/01f1b3a77c5214f096a1f8010ec780d0_escenario_seleccionado",
+                "query": {
+                  "datasetName": "red_curvas",
+                  "parameters": [
+                    {
+                      "name": "escenario_seleccionado",
+                      "keyword": "escenario_seleccionado"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "showTitle": true,
+                "title": "Escenario Red"
+              },
+              "widgetType": "filter-single-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "ESCENARIO_BATERIA",
+                    "queryName": "dashboards/01f1b3997dcf182599c66060ff507d6b/datasets/01f1b3a3225314889463ef5c4fa28597_ESCENARIO_BATERIA"
+                  },
+                  {
+                    "parameterName": "escenario_seleccionado",
+                    "queryName": "parameter_dashboards/01f1b3997dcf182599c66060ff507d6b/datasets/01f1b3a77c5214f096a1f8010ec780d0_escenario_seleccionado"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 32,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "red_curvas_title",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Curvas de Energía Activa — Nivel Red Completa (257 NISE promediados)\n",
+                "Las 8 curvas de energía activa agregadas para toda la red: consumo base, generación solar, excedentes, demanda neta, carga y descarga de batería. Usa el filtro de escenario para cambiar el tamaño de batería."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 29,
+            "width": 12,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "red_curvas_line",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "red_curvas",
+                  "fields": [
+                    {
+                      "name": "TIPO",
+                      "expression": "`TIPO`"
+                    },
+                    {
+                      "name": "BLOQUE_15M",
+                      "expression": "`BLOQUE_15M`"
+                    },
+                    {
+                      "name": "sum(VALOR_KWH)",
+                      "expression": "SUM(`VALOR_KWH`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "value": "Curvas Red Completa: 8 Curvas de Energia Activa",
+                  "fields": []
+                }
+              },
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "BLOQUE_15M",
+                  "displayName": "BLOQUE_15M",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fieldName": "sum(VALOR_KWH)",
+                  "displayName": "VALOR_KWH",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "TIPO",
+                  "displayName": "TIPO",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 33,
+            "width": 12,
+            "height": 6
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
+    },
+    {
+      "name": "nise_analysis",
+      "displayName": "Análisis por NISE",
+      "layout": [
+        {
+          "widget": {
+            "name": "nise_title",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Análisis por NISE — Impacto Individual de Baterías (Escenario 10 kWh)\n",
+                "Cada NISE recibe su propia batería virtual con SOC inicial 50%, eficiencia round-trip y C-rate 0.5. La simulación decide en cada bloque de 15 min si carga o descarga según el excedente solar y la demanda remanente."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "counter_nise",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "nise_resumen",
+                  "fields": [
+                    {
+                      "name": "countdistinct(NISE)",
+                      "expression": "COUNT(DISTINCT `NISE`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": "NISE Simulados"
+              },
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "countdistinct(NISE)",
+                  "rowNumber": 0
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 1,
+            "width": 6,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "counter_descarga",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "nise_resumen",
+                  "fields": [
+                    {
+                      "name": "sum(ENERGIA_DESCARGADA_KWH)",
+                      "expression": "SUM(`ENERGIA_DESCARGADA_KWH`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": "Energia Descargada Total (kWh)"
+              },
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "sum(ENERGIA_DESCARGADA_KWH)",
+                  "rowNumber": 0
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 1,
+            "width": 6,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "top20_descarga",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "nise_top20",
+                  "fields": [
+                    {
+                      "name": "NISE",
+                      "expression": "`NISE`"
+                    },
+                    {
+                      "name": "sum(ENERGIA_DESCARGADA_KWH)",
+                      "expression": "SUM(`ENERGIA_DESCARGADA_KWH`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": "Top 20 NISE por Energia Descargada"
+              },
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "NISE",
+                  "displayName": "NISE",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fieldName": "sum(ENERGIA_DESCARGADA_KWH)",
+                  "displayName": "ENERGIA_DESCARGADA_KWH",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "NISE",
+                  "displayName": "NISE",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 3,
+            "width": 6,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "top20_excedente",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "nise_top20",
+                  "fields": [
+                    {
+                      "name": "NISE",
+                      "expression": "`NISE`"
+                    },
+                    {
+                      "name": "sum(EXCEDENTE_NETO_KWH)",
+                      "expression": "SUM(`EXCEDENTE_NETO_KWH`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": "Top 20 NISE por Excedente Neto"
+              },
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "NISE",
+                  "displayName": "NISE",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fieldName": "sum(EXCEDENTE_NETO_KWH)",
+                  "displayName": "EXCEDENTE_NETO_KWH",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "NISE",
+                  "displayName": "NISE",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 3,
+            "width": 6,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "nise_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "nise_resumen",
+                  "fields": [
+                    {
+                      "name": "NISE",
+                      "expression": "`NISE`"
+                    },
+                    {
+                      "name": "PLAN",
+                      "expression": "`PLAN`"
+                    },
+                    {
+                      "name": "CAPACIDAD_BATERIA_KWH",
+                      "expression": "`CAPACIDAD_BATERIA_KWH`"
+                    },
+                    {
+                      "name": "CONSUMO_BASE_KWH",
+                      "expression": "`CONSUMO_BASE_KWH`"
+                    },
+                    {
+                      "name": "GENERACION_SOLAR_KWH",
+                      "expression": "`GENERACION_SOLAR_KWH`"
+                    },
+                    {
+                      "name": "ENERGIA_CARGADA_KWH",
+                      "expression": "`ENERGIA_CARGADA_KWH`"
+                    },
+                    {
+                      "name": "ENERGIA_DESCARGADA_KWH",
+                      "expression": "`ENERGIA_DESCARGADA_KWH`"
+                    },
+                    {
+                      "name": "DEMANDA_NETA_KWH",
+                      "expression": "`DEMANDA_NETA_KWH`"
+                    },
+                    {
+                      "name": "EXCEDENTE_NETO_KWH",
+                      "expression": "`EXCEDENTE_NETO_KWH`"
+                    },
+                    {
+                      "name": "ENERGIA_NO_VENDIDA_ADICIONAL_KWH",
+                      "expression": "`ENERGIA_NO_VENDIDA_ADICIONAL_KWH`"
+                    },
+                    {
+                      "name": "EFICIENCIA_CICLO_BATERIA",
+                      "expression": "`EFICIENCIA_CICLO_BATERIA`"
+                    },
+                    {
+                      "name": "PORCENTAJE_REDUCCION_ADICIONAL",
+                      "expression": "`PORCENTAJE_REDUCCION_ADICIONAL`"
+                    },
+                    {
+                      "name": "PORCENTAJE_EXCEDENTE_NETO",
+                      "expression": "`PORCENTAJE_EXCEDENTE_NETO`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": "Resumen Detallado por NISE (BATERIA_10)"
+              },
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "NISE"
+                  },
+                  {
+                    "fieldName": "PLAN"
+                  },
+                  {
+                    "fieldName": "CAPACIDAD_BATERIA_KWH"
+                  },
+                  {
+                    "fieldName": "CONSUMO_BASE_KWH"
+                  },
+                  {
+                    "fieldName": "GENERACION_SOLAR_KWH"
+                  },
+                  {
+                    "fieldName": "ENERGIA_CARGADA_KWH"
+                  },
+                  {
+                    "fieldName": "ENERGIA_DESCARGADA_KWH"
+                  },
+                  {
+                    "fieldName": "DEMANDA_NETA_KWH"
+                  },
+                  {
+                    "fieldName": "EXCEDENTE_NETO_KWH"
+                  },
+                  {
+                    "fieldName": "ENERGIA_NO_VENDIDA_ADICIONAL_KWH"
+                  },
+                  {
+                    "fieldName": "EFICIENCIA_CICLO_BATERIA"
+                  },
+                  {
+                    "fieldName": "PORCENTAJE_REDUCCION_ADICIONAL"
+                  },
+                  {
+                    "fieldName": "PORCENTAJE_EXCEDENTE_NETO"
+                  }
+                ]
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 8,
+            "width": 12,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "scatter_consumo_descarga",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "nise_resumen",
+                  "fields": [
+                    {
+                      "name": "PLAN",
+                      "expression": "`PLAN`"
+                    },
+                    {
+                      "name": "CONSUMO_BASE_KWH",
+                      "expression": "`CONSUMO_BASE_KWH`"
+                    },
+                    {
+                      "name": "ENERGIA_DESCARGADA_KWH",
+                      "expression": "`ENERGIA_DESCARGADA_KWH`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": "Consumo Base vs Energia Descargada por NISE (10 kWh)"
+              },
+              "version": 3,
+              "widgetType": "scatter",
+              "encodings": {
+                "x": {
+                  "fieldName": "CONSUMO_BASE_KWH",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "y": {
+                  "fieldName": "ENERGIA_DESCARGADA_KWH",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "PLAN",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 14,
+            "width": 12,
+            "height": 5
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
+    },
+    {
+      "name": "temporal_soc",
+      "displayName": "Análisis Temporal SOC",
+      "layout": [
+        {
+          "widget": {
+            "name": "temporal_title",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Análisis Temporal — SOC y Patrones de Carga/Descarga\n",
+                "Evolución del estado de carga (SOC) promedio a lo largo del día, distribución de estados de batería, tendencias mensuales e impacto marginal por kWh instalado."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "soc_line",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "soc_evolution",
+                  "fields": [
+                    {
+                      "name": "ESCENARIO_BATERIA",
+                      "expression": "`ESCENARIO_BATERIA`"
+                    },
+                    {
+                      "name": "BLOQUE_15M",
+                      "expression": "`BLOQUE_15M`"
+                    },
+                    {
+                      "name": "avg(SOC_PROMEDIO)",
+                      "expression": "AVG(`SOC_PROMEDIO`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": "SOC Promedio por Bloque 15-min"
+              },
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "BLOQUE_15M",
+                  "displayName": "BLOQUE_15M",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fieldName": "avg(SOC_PROMEDIO)",
+                  "displayName": "SOC_PROMEDIO",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "ESCENARIO_BATERIA",
+                  "displayName": "ESCENARIO_BATERIA",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 1,
+            "width": 12,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "state_bar",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "battery_state",
+                  "fields": [
+                    {
+                      "name": "ESTADO_BATERIA",
+                      "expression": "`ESTADO_BATERIA`"
+                    },
+                    {
+                      "name": "BLOQUE_15M",
+                      "expression": "`BLOQUE_15M`"
+                    },
+                    {
+                      "name": "sum(FRECUENCIA)",
+                      "expression": "SUM(`FRECUENCIA`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": "Distribucion Estado Bateria por Bloque (10 kWh)"
+              },
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "BLOQUE_15M",
+                  "displayName": "BLOQUE_15M",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fieldName": "sum(FRECUENCIA)",
+                  "displayName": "FRECUENCIA",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "ESTADO_BATERIA",
+                  "displayName": "ESTADO_BATERIA",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 6,
+            "width": 6,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "marginal_bar",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "marginal_impact",
+                  "fields": [
+                    {
+                      "name": "ESCENARIO_BATERIA",
+                      "expression": "`ESCENARIO_BATERIA`"
+                    },
+                    {
+                      "name": "sum(REDUCCION_POR_KWH_INSTALADO)",
+                      "expression": "SUM(`REDUCCION_POR_KWH_INSTALADO`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": "Reduccion Marginal por kWh Instalado"
+              },
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "ESCENARIO_BATERIA",
+                  "displayName": "ESCENARIO_BATERIA",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fieldName": "sum(REDUCCION_POR_KWH_INSTALADO)",
+                  "displayName": "REDUCCION_POR_KWH_INSTALADO",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "ESCENARIO_BATERIA",
+                  "displayName": "ESCENARIO_BATERIA",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 6,
+            "width": 6,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "monthly_line",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "monthly_trends",
+                  "fields": [
+                    {
+                      "name": "ESCENARIO_BATERIA",
+                      "expression": "`ESCENARIO_BATERIA`"
+                    },
+                    {
+                      "name": "monthly(PERIODO_MES)",
+                      "expression": "DATE_TRUNC(\"MONTH\", `PERIODO_MES`)"
+                    },
+                    {
+                      "name": "sum(ENERGIA_DESCARGADA_MWH)",
+                      "expression": "SUM(`ENERGIA_DESCARGADA_MWH`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": "Tendencia Mensual Energia Descargada (MWh)"
+              },
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "monthly(PERIODO_MES)",
+                  "displayName": "Month",
+                  "scale": {
+                    "type": "temporal"
+                  }
+                },
+                "y": {
+                  "fieldName": "sum(ENERGIA_DESCARGADA_MWH)",
+                  "displayName": "ENERGIA_DESCARGADA_MWH",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "ESCENARIO_BATERIA",
+                  "displayName": "ESCENARIO_BATERIA",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 10,
+            "width": 12,
+            "height": 4
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
+    },
+    {
+      "name": "detalle_nise",
+      "displayName": "Detalle NISE por Escenario",
+      "layout": [
+        {
+          "widget": {
+            "name": "detalle_title",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Detalle por NISE — Curvas Completas por Escenario\n",
+                "Selecciona un NISE y un escenario de batería para ver las 5 curvas superpuestas: **consumo base**, **generación solar**, **demanda neta con batería**, **carga** y **descarga** de la batería. El gráfico SOC muestra la comparación entre todos los escenarios."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "soc_line",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "nise_soc_det",
+                  "fields": [
+                    {
+                      "name": "ESCENARIO_BATERIA",
+                      "expression": "`ESCENARIO_BATERIA`"
+                    },
+                    {
+                      "name": "BLOQUE_15M",
+                      "expression": "`BLOQUE_15M`"
+                    },
+                    {
+                      "name": "avg(SOC_PROMEDIO)",
+                      "expression": "AVG(`SOC_PROMEDIO`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": "Evolucion SOC por Escenario"
+              },
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "BLOQUE_15M",
+                  "displayName": "BLOQUE_15M",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fieldName": "avg(SOC_PROMEDIO)",
+                  "displayName": "SOC_PROMEDIO",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "ESCENARIO_BATERIA",
+                  "displayName": "ESCENARIO_BATERIA",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 8,
+            "width": 6,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "mensual_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "nise_mensual_det",
+                  "fields": [
+                    {
+                      "name": "NISE",
+                      "expression": "`NISE`"
+                    },
+                    {
+                      "name": "ESCENARIO_BATERIA",
+                      "expression": "`ESCENARIO_BATERIA`"
+                    },
+                    {
+                      "name": "PERIODO_MES",
+                      "expression": "`PERIODO_MES`"
+                    },
+                    {
+                      "name": "ENERGIA_CARGADA_KWH",
+                      "expression": "`ENERGIA_CARGADA_KWH`"
+                    },
+                    {
+                      "name": "ENERGIA_DESCARGADA_KWH",
+                      "expression": "`ENERGIA_DESCARGADA_KWH`"
+                    },
+                    {
+                      "name": "EXCEDENTE_NETO_KWH",
+                      "expression": "`EXCEDENTE_NETO_KWH`"
+                    },
+                    {
+                      "name": "DEMANDA_NETA_KWH",
+                      "expression": "`DEMANDA_NETA_KWH`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": "Resumen Mensual por Escenario"
+              },
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "NISE"
+                  },
+                  {
+                    "fieldName": "ESCENARIO_BATERIA"
+                  },
+                  {
+                    "fieldName": "PERIODO_MES"
+                  },
+                  {
+                    "fieldName": "ENERGIA_CARGADA_KWH"
+                  },
+                  {
+                    "fieldName": "ENERGIA_DESCARGADA_KWH"
+                  },
+                  {
+                    "fieldName": "EXCEDENTE_NETO_KWH"
+                  },
+                  {
+                    "fieldName": "DEMANDA_NETA_KWH"
+                  }
+                ]
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 13,
+            "width": 12,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "curvas_completas",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "nise_curvas_det",
+                  "fields": [
+                    {
+                      "name": "TIPO",
+                      "expression": "`TIPO`"
+                    },
+                    {
+                      "name": "BLOQUE_15M",
+                      "expression": "`BLOQUE_15M`"
+                    },
+                    {
+                      "name": "sum(VALOR_KWH)",
+                      "expression": "SUM(`VALOR_KWH`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "value": "Curvas Completas: Consumo, Solar, Demanda Neta, Carga y Descarga",
+                  "fields": []
+                }
+              },
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "BLOQUE_15M",
+                  "displayName": "BLOQUE_15M",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fieldName": "sum(VALOR_KWH)",
+                  "displayName": "VALOR_KWH",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "TIPO",
+                  "displayName": "TIPO",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 12,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "carga_descarga_line",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "nise_carga_descarga_det",
+                  "fields": [
+                    {
+                      "name": "TIPO",
+                      "expression": "`TIPO`"
+                    },
+                    {
+                      "name": "BLOQUE_15M",
+                      "expression": "`BLOQUE_15M`"
+                    },
+                    {
+                      "name": "avg(VALOR_KWH)",
+                      "expression": "AVG(`VALOR_KWH`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": "Carga y Descarga de Bateria por Bloque"
+              },
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "BLOQUE_15M",
+                  "displayName": "BLOQUE_15M",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fieldName": "avg(VALOR_KWH)",
+                  "displayName": "VALOR_KWH",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "TIPO",
+                  "displayName": "TIPO",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 8,
+            "width": 6,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "nise_param_filter",
+            "queries": [
+              {
+                "name": "dashboards/01f1b3997dcf182599c66060ff507d6b/datasets/01f1b3a011a11a9d93113edf87fb5bb5_NISE",
+                "query": {
+                  "datasetName": "nise_lista",
+                  "fields": [
+                    {
+                      "name": "NISE",
+                      "expression": "`NISE`"
+                    },
+                    {
+                      "name": "NISE_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f1b3997dcf182599c66060ff507d6b/datasets/01f1b3a322f015a7bab33ccc7704cc0c_nise_seleccionado",
+                "query": {
+                  "datasetName": "nise_curvas_det",
+                  "parameters": [
+                    {
+                      "name": "nise_seleccionado",
+                      "keyword": "nise_seleccionado"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "showTitle": true,
+                "title": "Seleccionar NISE"
+              },
+              "widgetType": "filter-single-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "NISE",
+                    "queryName": "dashboards/01f1b3997dcf182599c66060ff507d6b/datasets/01f1b3a011a11a9d93113edf87fb5bb5_NISE"
+                  },
+                  {
+                    "parameterName": "nise_seleccionado",
+                    "queryName": "parameter_dashboards/01f1b3997dcf182599c66060ff507d6b/datasets/01f1b3a322f015a7bab33ccc7704cc0c_nise_seleccionado"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 1,
+            "width": 6,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "escenario_param_filter",
+            "queries": [
+              {
+                "name": "dashboards/01f1b3997dcf182599c66060ff507d6b/datasets/01f1b3a3225314889463ef5c4fa28597_ESCENARIO_BATERIA",
+                "query": {
+                  "datasetName": "escenario_lista",
+                  "fields": [
+                    {
+                      "name": "ESCENARIO_BATERIA",
+                      "expression": "`ESCENARIO_BATERIA`"
+                    },
+                    {
+                      "name": "ESCENARIO_BATERIA_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f1b3997dcf182599c66060ff507d6b/datasets/01f1b3a322f015a7bab33ccc7704cc0c_escenario_seleccionado",
+                "query": {
+                  "datasetName": "nise_curvas_det",
+                  "parameters": [
+                    {
+                      "name": "escenario_seleccionado",
+                      "keyword": "escenario_seleccionado"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "showTitle": true,
+                "title": "Seleccionar Escenario"
+              },
+              "widgetType": "filter-single-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "ESCENARIO_BATERIA",
+                    "queryName": "dashboards/01f1b3997dcf182599c66060ff507d6b/datasets/01f1b3a3225314889463ef5c4fa28597_ESCENARIO_BATERIA"
+                  },
+                  {
+                    "parameterName": "escenario_seleccionado",
+                    "queryName": "parameter_dashboards/01f1b3997dcf182599c66060ff507d6b/datasets/01f1b3a322f015a7bab33ccc7704cc0c_escenario_seleccionado"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 1,
+            "width": 6,
+            "height": 1
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
+    }
+  ],
+  "uiSettings": {
+    "theme": {
+      "widgetHeaderAlignment": "ALIGNMENT_UNSPECIFIED"
+    },
+    "applyModeEnabled": false
+  }
+}

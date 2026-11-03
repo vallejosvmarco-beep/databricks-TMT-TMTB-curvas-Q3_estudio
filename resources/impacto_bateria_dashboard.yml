@@ -1,0 +1,10 @@
+resources:
+  dashboards:
+    impacto_bateria_dashboard:
+      display_name: "Impacto Baterias - Curvas Q3"
+      file_path: ../dashboards/impacto_bateria_src.json
+      warehouse_id: ${var.warehouse_id}
+      dataset_catalog: ${var.output_catalog}
+      dataset_schema: ${var.output_schema}
+      parent_path: "/Shared/curvas-Q3"
+      embed_credentials: false

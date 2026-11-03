@@ -1,0 +1,28 @@
+resources:
+  pipelines:
+    impacto_solar_q3:
+      name: TMT_TMTB_Q3_IMPACTO_SOLAR
+
+      catalog: ${var.output_catalog}
+      schema: ${var.output_schema}
+
+      serverless: true
+      continuous: false
+
+      configuration:
+        project.source_catalog: ${var.source_catalog}
+        project.source_schema_950: ${var.source_schema_950}
+        project.source_table_950: ${var.source_table_950}
+        project.output_catalog: ${var.output_catalog}
+        project.output_schema: ${var.output_schema}
+        project.periodo_inicio: "2026-02-01"
+        project.periodo_fin: "2026-07-31"
+        project.escenario: "ADOPCION_100"
+
+      libraries:
+        - file:
+            path: ../../src/q3/perfil_solar_q3.py
+        - file:
+            path: ../../src/q3/impacto_solar_q3.py
+        - file:
+            path: ../../src/q3/calidad_impacto_solar.py

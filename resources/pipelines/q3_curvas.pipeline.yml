@@ -1,0 +1,21 @@
+resources:
+  pipelines:
+    q3_curvas:
+      name: TMT_TMTB_Q3_CURVAS
+
+      catalog: ${var.output_catalog}
+      schema: ${var.output_schema}
+
+      serverless: true
+      continuous: false
+
+      configuration:
+        project.source_catalog: ${var.source_catalog}
+        project.source_schema_950: ${var.source_schema_950}
+        project.source_table_950: ${var.source_table_950}
+        project.periodo_inicio: "2026-02-01"
+        project.periodo_fin: "2026-07-31"
+
+      libraries:
+        - file:
+            path: ../../src/q3/curvas_q3.py

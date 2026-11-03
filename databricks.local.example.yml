@@ -1,0 +1,10 @@
+# Plantilla de configuracion local (versionada)
+# Copiar a databricks.local.yml y editar el nombre del warehouse:
+#   cp databricks.local.example.yml databricks.local.yml
+#
+# databricks.local.yml esta en .gitignore
+
+variables:
+  warehouse_id:
+    lookup:
+      warehouse: "REEMPLAZAR_CON_NOMBRE_SQL_WAREHOUSE"

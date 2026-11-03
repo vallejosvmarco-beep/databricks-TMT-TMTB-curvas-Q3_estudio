@@ -1,0 +1,10 @@
+resources:
+  dashboards:
+    curvas_q3_mensuales:
+      display_name: "Curvas Q3 Mensuales - Análisis Multidimensional"
+      file_path: ../dashboards/curvas_q3_src.json
+      warehouse_id: ${var.warehouse_id}
+      dataset_catalog: ${var.output_catalog}
+      dataset_schema: ${var.output_schema}
+      parent_path: "/Shared/curvas-Q3"
+      embed_credentials: false

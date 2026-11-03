@@ -1,0 +1,48 @@
+bundle:
+  name: tmt_tmtb_curvas_q3
+
+include:
+  - resources/pipelines/*.yml
+  - resources/*.yml
+  - databricks.local.yml
+
+variables:
+  source_catalog:
+    description: Catalogo donde existe plata_950_carga
+    default: workspace
+
+  source_schema_950:
+    description: Schema donde existe plata_950_carga
+    default: plata_analisis
+
+  source_table_950:
+    description: Nombre de la tabla plata 950 existente
+    default: plata_950_carga
+
+  output_catalog:
+    description: Catalogo de salida
+    default: workspace
+
+  output_schema:
+    description: Schema de salida para curvas Q3
+    default: oro_q3
+
+  periodo_inicio:
+    description: Fecha inicial inclusive
+    default: "2026-01-01"
+
+  periodo_fin:
+    description: Fecha final inclusive
+    default: "2026-06-30"
+
+  # warehouse_id se resuelve por nombre desde databricks.local.yml
+  # mediante el mecanismo `lookup` de DABs.
+  # No editar aqui: crear databricks.local.yml desde databricks.local.example.yml
+
+targets:
+  free_dev:
+    mode: development
+    default: true
+    variables:
+      source_catalog: workspace
+      output_catalog: workspace
