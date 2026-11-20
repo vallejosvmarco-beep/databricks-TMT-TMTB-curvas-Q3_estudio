@@ -268,7 +268,7 @@ def impacto_bateria_q3_intervalo():
     comment=(
         "Resumen mensual de impacto de baterias por cliente y escenario. "
         "Agrega intervalos a nivel NISE x PERIODO_MES respetando "
-        "ENTRE_SEMANA y FIN_DE_SEMANA."
+        "TIPO_DIA laboral y fin_de_semana (ref_calendario; feriado = fin_de_semana)."
     ),
 )
 def impacto_bateria_q3_cliente_mes():

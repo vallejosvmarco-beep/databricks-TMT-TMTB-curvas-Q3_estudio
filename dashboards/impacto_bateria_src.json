@@ -33,9 +33,7 @@
         "  impacto_bateria_q3_global\n",
         "ORDER BY\n",
         "  ESCENARIO_BATERIA"
-      ],
-      "catalog": "workspace",
-      "schema": "oro_q3"
+      ]
     },
     {
       "name": "bateria_calidad",
@@ -49,9 +47,7 @@
         "  FECHA_VALIDACION\n",
         "FROM\n",
         "  impacto_bateria_q3_calidad"
-      ],
-      "catalog": "workspace",
-      "schema": "oro_q3"
+      ]
     },
     {
       "name": "bateria_global",
@@ -73,9 +69,7 @@
         "  impacto_bateria_q3_global\n",
         "ORDER BY\n",
         "  CAPACIDAD_TOTAL_MWH"
-      ],
-      "catalog": "workspace",
-      "schema": "oro_q3"
+      ]
     },
     {
       "name": "duck_curve",
@@ -113,9 +107,7 @@
         "  BLOQUE_15M,\n",
         "  HORA,\n",
         "  MINUTO"
-      ],
-      "catalog": "workspace",
-      "schema": "oro_q3"
+      ]
     },
     {
       "name": "soc_evolution",
@@ -138,9 +130,7 @@
         "ORDER BY\n",
         "  ESCENARIO_BATERIA,\n",
         "  BLOQUE_15M"
-      ],
-      "catalog": "workspace",
-      "schema": "oro_q3"
+      ]
     },
     {
       "name": "nise_resumen",
@@ -166,9 +156,7 @@
         "  ESCENARIO_BATERIA = 'BATERIA_10'\n",
         "ORDER BY\n",
         "  ENERGIA_DESCARGADA_KWH DESC"
-      ],
-      "catalog": "workspace",
-      "schema": "oro_q3"
+      ]
     },
     {
       "name": "marginal_impact",
@@ -187,9 +175,7 @@
         "  impacto_bateria_q3_global\n",
         "ORDER BY\n",
         "  CAPACIDAD_TOTAL_MWH"
-      ],
-      "catalog": "workspace",
-      "schema": "oro_q3"
+      ]
     },
     {
       "name": "battery_state",
@@ -208,9 +194,7 @@
         "  ESTADO_BATERIA\n",
         "ORDER BY\n",
         "  BLOQUE_15M"
-      ],
-      "catalog": "workspace",
-      "schema": "oro_q3"
+      ]
     },
     {
       "name": "reduccion_ventas",
@@ -224,9 +208,7 @@
         "  impacto_bateria_q3_global\n",
         "ORDER BY\n",
         "  CAPACIDAD_TOTAL_MWH"
-      ],
-      "catalog": "workspace",
-      "schema": "oro_q3"
+      ]
     },
     {
       "name": "monthly_trends",
@@ -239,16 +221,14 @@
         "  SUM(ENERGIA_DESCARGADA_KWH) / 1000 AS ENERGIA_DESCARGADA_MWH,\n",
         "  SUM(EXCEDENTE_NETO_KWH) / 1000 AS EXCEDENTE_NETO_MWH\n",
         "FROM\n",
-        "  impacto_bateria_q3_intervalo\n",
+        "  impacto_bateria_q3_cliente_mes\n",
         "GROUP BY\n",
         "  ESCENARIO_BATERIA,\n",
         "  PERIODO_MES\n",
         "ORDER BY\n",
         "  ESCENARIO_BATERIA,\n",
         "  PERIODO_MES"
-      ],
-      "catalog": "workspace",
-      "schema": "oro_q3"
+      ]
     },
     {
       "name": "nise_top20",
@@ -270,9 +250,7 @@
         "ORDER BY\n",
         "  ENERGIA_DESCARGADA_KWH DESC\n",
         "LIMIT 20"
-      ],
-      "catalog": "workspace",
-      "schema": "oro_q3"
+      ]
     },
     {
       "name": "nise_soc_det",
@@ -312,9 +290,7 @@
             }
           }
         }
-      ],
-      "catalog": "workspace",
-      "schema": "oro_q3"
+      ]
     },
     {
       "name": "nise_mensual_det",
@@ -356,9 +332,7 @@
             }
           }
         }
-      ],
-      "catalog": "workspace",
-      "schema": "oro_q3"
+      ]
     },
     {
       "name": "nise_lista",
@@ -370,9 +344,7 @@
         "  impacto_bateria_q3_intervalo\n",
         "ORDER BY\n",
         "  NISE"
-      ],
-      "catalog": "workspace",
-      "schema": "oro_q3"
+      ]
     },
     {
       "name": "comparacion_solar_bateria",
@@ -399,9 +371,7 @@
         "  impacto_bateria_q3_global b CROSS JOIN impacto_solar_q3_global s\n",
         "ORDER BY\n",
         "  CAPACIDAD_MWH"
-      ],
-      "catalog": "workspace",
-      "schema": "oro_q3"
+      ]
     },
     {
       "name": "escenario_lista",
@@ -416,9 +386,7 @@
         "  impacto_bateria_q3_intervalo\n",
         "ORDER BY\n",
         "  ESCENARIO_BATERIA"
-      ],
-      "catalog": "workspace",
-      "schema": "oro_q3"
+      ]
     },
     {
       "name": "nise_carga_descarga_det",
@@ -490,9 +458,7 @@
             }
           }
         }
-      ],
-      "catalog": "workspace",
-      "schema": "oro_q3"
+      ]
     },
     {
       "name": "nise_curvas_det",
@@ -623,9 +589,7 @@
             }
           }
         }
-      ],
-      "catalog": "workspace",
-      "schema": "oro_q3"
+      ]
     },
     {
       "name": "red_curvas",
@@ -740,9 +704,7 @@
             }
           }
         }
-      ],
-      "catalog": "workspace",
-      "schema": "oro_q3"
+      ]
     }
   ],
   "pages": [

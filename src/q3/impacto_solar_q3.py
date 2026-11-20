@@ -215,7 +215,7 @@ def impacto_solar_q3_intervalo():
     name="impacto_solar_q3_cliente_mes",
     comment=(
         "Resumen mensual de impacto solar por cliente. Agrega intervalos "
-        "a nivel NISE x PERIODO_MES respetando ENTRE_SEMANA y FIN_DE_SEMANA."
+        "a nivel NISE x PERIODO_MES respetando TIPO_DIA laboral y fin_de_semana (ref_calendario)."
     ),
 )
 def impacto_solar_q3_cliente_mes():

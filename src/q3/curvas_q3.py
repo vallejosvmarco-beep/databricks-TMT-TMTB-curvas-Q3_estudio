@@ -9,6 +9,11 @@ PERIODO_INICIO = spark.conf.get("project.periodo_inicio")
 PERIODO_FIN = spark.conf.get("project.periodo_fin")
 
 SOURCE_FQN = f"{SOURCE_CATALOG}.{SOURCE_SCHEMA}.{SOURCE_TABLE}"
+# Calendario comun (conocimiento_base/src/referencias/ref_calendario.sql), en el mismo
+# catalogo/esquema que plata_950_carga. Se une por FECHA = dia de la curva de plata_950
+# (no la fecha de FECHA_LECTURA, que es fin de intervalo: 00:00 = intervalo 96 del dia
+# anterior). TIPO_DIA: laboral / fin_de_semana (feriado = fin_de_semana).
+CALENDARIO_FQN = f"{SOURCE_CATALOG}.{SOURCE_SCHEMA}.ref_calendario"
 
 
 @dp.materialized_view(
@@ -20,6 +25,12 @@ SOURCE_FQN = f"{SOURCE_CATALOG}.{SOURCE_SCHEMA}.{SOURCE_TABLE}"
 )
 def curvas_q3_mensuales():
     df = spark.read.table(SOURCE_FQN)
+    calendario = spark.read.table(CALENDARIO_FQN).select(
+        "FECHA",
+        F.col("ANIO").alias("ANIO_CAL"),
+        F.col("MES").alias("MES_CAL"),
+        F.col("TIPO_DIA").alias("TIPO_DIA_CAL"),
+    )
 
     base = (
         df
@@ -28,14 +39,14 @@ def curvas_q3_mensuales():
             & F.col("OPERACION").isNotNull()
             & F.col("FECHA_LECTURA").isNotNull()
         )
-        .withColumn("FECHA", F.to_date("FECHA_LECTURA"))
         .filter(
             (F.col("FECHA") >= F.lit(PERIODO_INICIO).cast("date"))
             & (F.col("FECHA") <= F.lit(PERIODO_FIN).cast("date"))
         )
+        .join(calendario, "FECHA", "inner")
         .withColumn("PERIODO_MES", F.trunc(F.col("FECHA"), "month"))
-        .withColumn("ANIO", F.year("FECHA_LECTURA"))
-        .withColumn("MES", F.month("FECHA_LECTURA"))
+        .withColumn("ANIO", F.col("ANIO_CAL"))
+        .withColumn("MES", F.col("MES_CAL"))
         .withColumn("HORA", F.hour("FECHA_LECTURA"))
         .withColumn("MINUTO", F.minute("FECHA_LECTURA"))
         .withColumn(
@@ -47,13 +58,7 @@ def curvas_q3_mensuales():
         )
         .withColumn("ENERGIA", F.col("ENERGIA").cast("double"))
         .withColumn("DEMANDA", F.col("DEMANDA").cast("double"))
-        .withColumn(
-            "TIPO_DIA",
-            F.when(
-                F.dayofweek("FECHA").isin([2, 3, 4, 5, 6]),
-                F.lit("ENTRE_SEMANA")
-            ).otherwise(F.lit("FIN_DE_SEMANA"))
-        )
+        .withColumn("TIPO_DIA", F.col("TIPO_DIA_CAL"))
     )
 
     long_df = (

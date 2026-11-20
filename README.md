@@ -97,8 +97,14 @@ Una fila = un punto Q3 mensual por:
 | Generacion_SGDA_Reactivo_kVARh | Generacion solar reactiva |
 
 ### TIPO_DIA
-- `ENTRE_SEMANA`: lunes a viernes
-- `FIN_DE_SEMANA: sabado y domingo
+Se toma de la tabla comun `datosami.datos.ref_calendario` (definida en
+`databricks-conocimiento_base_estudio/src/referencias/ref_calendario.sql`), unida por
+`FECHA` = dia de la curva de `plata_950_carga`:
+- `laboral`: lunes a viernes que no son feriado
+- `fin_de_semana`: sabado, domingo o feriado (Codigo de Trabajo art. 148, con traslados de la Ley 9875)
+
+HORA, MINUTO y BLOQUE_15M siguen siendo la estampilla de fin de intervalo de `FECHA_LECTURA`
+(el intervalo 96, 00:00, queda como bloque 0 del mismo dia de la curva).
 
 ---
 

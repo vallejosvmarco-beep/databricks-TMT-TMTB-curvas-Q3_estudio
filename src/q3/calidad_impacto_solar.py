@@ -192,26 +192,47 @@ def impacto_solar_q3_calidad():
     )
 
     # 10. Consistencia: SUM(clientes) = resultado global
+    # Se calcula con DataFrames (sin collect) para que el pipeline registre la
+    # dependencia con la tabla global y la evalue despues de calcularla.
+    # La tabla global guarda GWh redondeados a 3 decimales, por lo que se
+    # tolera hasta 500 kWh (media unidad del redondeo).
+    TOLERANCIA_KWH = 500.0
     sum_clientes = cliente.agg(
-        F.sum("ENERGIA_NO_VENDIDA_KWH").alias("SUM_NO_VENDIDA"),
-        F.sum("CONSUMO_BASE_KWH").alias("SUM_BASE"),
-    ).collect()[0]
-
-    # Check if global table has data
-    global_rows = global_tbl.collect()
-    if len(global_rows) > 0:
-        global_row = global_rows[0]
-        diferencia_no_vendida = abs(
-            sum_clientes["SUM_NO_VENDIDA"] - global_row["ENERGIA_NO_VENDIDA_GWH"] * 1e6
-        )
-        descripcion = f"Diferencia SUM(clientes) vs global: {diferencia_no_vendida:.4f} kWh"
-    else:
-        descripcion = "Tabla global vacia - no se puede verificar consistencia"
-
+        F.sum("ENERGIA_NO_VENDIDA_KWH").alias("SUM_NO_VENDIDA_KWH"),
+    )
+    global_agg = global_tbl.agg(
+        F.sum(F.col("ENERGIA_NO_VENDIDA_GWH") * F.lit(1e6)).alias("GLOBAL_NO_VENDIDA_KWH"),
+        F.count("*").alias("FILAS_GLOBAL"),
+    )
     consistencia = (
-        spark.createDataFrame(
-            [("CONSISTENCIA_GLOBAL", descripcion, 1, "impacto_solar_q3_global")],
-            ["VALIDACION", "DESCRIPCION", "REGISTROS_AFECTADOS", "TABLA"],
+        sum_clientes.crossJoin(global_agg)
+        .withColumn(
+            "DIFERENCIA_KWH",
+            F.abs(
+                F.coalesce(F.col("SUM_NO_VENDIDA_KWH"), F.lit(0.0))
+                - F.coalesce(F.col("GLOBAL_NO_VENDIDA_KWH"), F.lit(0.0))
+            ),
+        )
+        .select(
+            F.lit("CONSISTENCIA_GLOBAL").alias("VALIDACION"),
+            F.when(
+                F.col("FILAS_GLOBAL") == 0,
+                F.lit("Tabla global vacia - no se puede verificar consistencia"),
+            ).otherwise(
+                F.concat(
+                    F.lit("Diferencia SUM(clientes) vs global: "),
+                    F.format_number(F.col("DIFERENCIA_KWH"), 4),
+                    F.lit(" kWh (tolerancia "),
+                    F.lit(str(TOLERANCIA_KWH)),
+                    F.lit(" kWh)"),
+                )
+            ).alias("DESCRIPCION"),
+            F.when(
+                (F.col("FILAS_GLOBAL") == 0)
+                | (F.col("DIFERENCIA_KWH") > TOLERANCIA_KWH),
+                F.lit(1),
+            ).otherwise(F.lit(0)).cast("long").alias("REGISTROS_AFECTADOS"),
+            F.lit("impacto_solar_q3_global").alias("TABLA"),
         )
     )
 

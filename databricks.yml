@@ -4,7 +4,6 @@ bundle:
 include:
   - resources/pipelines/*.yml
   - resources/*.yml
-  - databricks.local.yml
 
 variables:
   source_catalog:
@@ -35,14 +34,24 @@ variables:
     description: Fecha final inclusive
     default: "2026-06-30"
 
-  # warehouse_id se resuelve por nombre desde databricks.local.yml
-  # mediante el mecanismo `lookup` de DABs.
-  # No editar aqui: crear databricks.local.yml desde databricks.local.example.yml
+  # warehouse_id se resuelve por nombre mediante el mecanismo `lookup` de DABs.
+  # Para usar otro warehouse, sobreescribir en el target correspondiente.
+  warehouse_id:
+    description: SQL Warehouse utilizado por los dashboards
+    lookup:
+      warehouse: Serverless Starter Warehouse
 
 targets:
   free_dev:
     mode: development
     default: true
     variables:
-      source_catalog: workspace
-      output_catalog: workspace
+      # Entorno CNFL: catalogo datosami, esquema unico datos
+      # (plata_950_carga la genera el bundle AMI_base_estudio)
+      source_catalog: datosami
+      source_schema_950: datos
+      output_catalog: datosami
+      output_schema: datos
+      # Mismo mes disponible en la base (diciembre 2025)
+      periodo_inicio: "2025-12-01"
+      periodo_fin: "2025-12-31"
