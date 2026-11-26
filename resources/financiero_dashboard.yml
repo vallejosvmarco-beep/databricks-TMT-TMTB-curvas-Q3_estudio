@@ -1,0 +1,8 @@
+resources:
+  dashboards:
+    financiero_escenarios:
+      display_name: "TMT_TMTB Solar - Escenarios financieros"
+      file_path: ../dashboards/financiero_escenarios.lvdash.json
+      warehouse_id: ${var.warehouse_id}
+      parent_path: "/Shared/curvas-Q3"
+      embed_credentials: false

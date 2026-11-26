@@ -29,6 +29,10 @@ Estrategia: AUTOCONSUMO_MAX
 
 Unidades: kWh por intervalo de 15 minutos (ENERGIA, no DEMANDA).
 
+Escalado (2026-11-20): la simulacion corre sobre el dia tipico PROMEDIO
+(DEMANDA_PROM_KWH); cliente_mes multiplica por DIAS_CON_DATOS (dias con
+lectura) para obtener energia medida del mes, sin extrapolar dias sin datos. DEMANDA_Q3_KWH se conserva solo como referencia de picos.
+
 Convencion de columnas:
   - ENERGIA_BATERIA_KWH > 0: CARGA (energia tomada del excedente solar)
   - ENERGIA_BATERIA_KWH < 0: DESCARGA (energia entregada a la carga)
@@ -60,6 +64,7 @@ BATTERY_INTERVALO_SCHEMA = StructType([
     StructField("HORA", IntegerType(), True),
     StructField("MINUTO", IntegerType(), True),
     StructField("DEMANDA_Q3_KWH", DoubleType(), True),
+    StructField("DEMANDA_PROM_KWH", DoubleType(), True),
     StructField("GENERACION_SOLAR_SIMULADA_KWH", DoubleType(), True),
     StructField("EXCEDENTE_SOLAR_KWH", DoubleType(), True),
     StructField("DEMANDA_REMANENTE_KWH", DoubleType(), True),
@@ -77,6 +82,7 @@ BATTERY_INTERVALO_SCHEMA = StructType([
     StructField("ESTADO_BATERIA", StringType(), True),
     StructField("MUESTRAS", LongType(), True),
     StructField("DIAS_CON_DATOS", LongType(), True),
+    StructField("DIAS_TIPO_MES", LongType(), True),
 ])
 
 
@@ -115,8 +121,18 @@ def _simulate_battery(pdf: pd.DataFrame) -> pd.DataFrame:
     excedente_neto_list = []
     estado_list = []
 
-    for _, row in pdf.iterrows():
-        demanda = row["DEMANDA_Q3_KWH"]
+    # Dia tipico ciclico: se simula el dia dos veces y se conserva la segunda
+    # pasada, que arranca con el SOC del final del primer dia. El primer dia
+    # arranca vacio (SOC_MIN, no SOC_INICIAL): como la dinamica es monotona en el
+    # SOC, el SOC final de la segunda pasada es >= su SOC inicial, por lo que la
+    # descarga nunca supera la carga x eficiencia (no se "regala" energia al
+    # escalar el dia tipico x dias del mes).
+    soc = soc_min
+    n_filas = len(pdf)
+    filas = pd.concat([pdf, pdf], ignore_index=True)
+
+    for _, row in filas.iterrows():
+        demanda = row["DEMANDA_PROM_KWH"]
         generacion = row["GENERACION_SOLAR_SIMULADA_KWH"]
         balance = generacion - demanda
 
@@ -170,24 +186,26 @@ def _simulate_battery(pdf: pd.DataFrame) -> pd.DataFrame:
         excedente_neto_list.append(excedente_neto)
         estado_list.append(estado)
 
-    pdf["SOC"] = soc_list
-    pdf["ENERGIA_BATERIA_KWH"] = energia_bateria_list
-    pdf["ENERGIA_CARGA_KWH"] = energia_carga_list
-    pdf["ENERGIA_DESCARGA_KWH"] = energia_descarga_list
-    pdf["DEMANDA_NETA_CON_BATERIA_KWH"] = demanda_neta_list
-    pdf["EXCEDENTE_NETO_KWH"] = excedente_neto_list
-    pdf["ESTADO_BATERIA"] = estado_list
+    # Solo la segunda pasada (estado estacionario)
+    pdf["SOC"] = soc_list[n_filas:]
+    pdf["ENERGIA_BATERIA_KWH"] = energia_bateria_list[n_filas:]
+    pdf["ENERGIA_CARGA_KWH"] = energia_carga_list[n_filas:]
+    pdf["ENERGIA_DESCARGA_KWH"] = energia_descarga_list[n_filas:]
+    pdf["DEMANDA_NETA_CON_BATERIA_KWH"] = demanda_neta_list[n_filas:]
+    pdf["EXCEDENTE_NETO_KWH"] = excedente_neto_list[n_filas:]
+    pdf["ESTADO_BATERIA"] = estado_list[n_filas:]
 
     output_cols = [
         "ESCENARIO_SOLAR", "ESCENARIO_BATERIA", "NISE", "PERIODO_MES",
         "TIPO_DIA", "PLAN", "TIPO_CLIENTE_SOLAR", "ANIO", "MES",
-        "BLOQUE_15M", "HORA", "MINUTO", "DEMANDA_Q3_KWH",
+        "BLOQUE_15M", "HORA", "MINUTO", "DEMANDA_Q3_KWH", "DEMANDA_PROM_KWH",
         "GENERACION_SOLAR_SIMULADA_KWH", "EXCEDENTE_SOLAR_KWH",
         "DEMANDA_REMANENTE_KWH", "CAPACIDAD_KWH", "POTENCIA_CARGA_15MIN",
         "POTENCIA_DESCARGA_15MIN", "EFICIENCIA_CARGA", "EFICIENCIA_DESCARGA",
         "SOC", "ENERGIA_BATERIA_KWH", "ENERGIA_CARGA_KWH",
         "ENERGIA_DESCARGA_KWH", "DEMANDA_NETA_CON_BATERIA_KWH",
         "EXCEDENTE_NETO_KWH", "ESTADO_BATERIA", "MUESTRAS", "DIAS_CON_DATOS",
+        "DIAS_TIPO_MES",
     ]
     return pdf[output_cols]
 
@@ -232,12 +250,25 @@ def impacto_bateria_q3_intervalo():
             F.col("s.HORA"),
             F.col("s.MINUTO"),
             F.col("s.DEMANDA_Q3_KWH"),
+            F.col("s.DEMANDA_PROM_KWH"),
             F.col("s.GENERACION_SOLAR_SIMULADA_KWH"),
             F.col("s.EXCEDENTE_SOLAR_KWH"),
             F.col("s.DEMANDA_REMANENTE_KWH"),
-            F.col("b.CAPACIDAD_KWH"),
-            (F.col("b.POTENCIA_CARGA_KW") / 4.0).alias("POTENCIA_CARGA_15MIN"),
-            (F.col("b.POTENCIA_DESCARGA_KW") / 4.0).alias("POTENCIA_DESCARGA_15MIN"),
+            # Dimension por cliente: kWp = POTENCIA_SOLAR_PICO_CLIENTE (kWh/15 min) x 4
+            # POTENCIA = FRACCION x kWp; CAPACIDAD = POTENCIA x HORAS
+            (
+                F.coalesce(F.col("s.POTENCIA_SOLAR_PICO_CLIENTE"), F.lit(0.0)) * 4.0
+                * F.col("b.FRACCION_POTENCIA_FV") * F.col("b.HORAS_DURACION")
+            ).alias("CAPACIDAD_KWH"),
+            # Energia maxima por intervalo de 15 min = POTENCIA_KW / 4 = FRACCION x kWh/15min
+            (
+                F.coalesce(F.col("s.POTENCIA_SOLAR_PICO_CLIENTE"), F.lit(0.0))
+                * F.col("b.FRACCION_POTENCIA_FV")
+            ).alias("POTENCIA_CARGA_15MIN"),
+            (
+                F.coalesce(F.col("s.POTENCIA_SOLAR_PICO_CLIENTE"), F.lit(0.0))
+                * F.col("b.FRACCION_POTENCIA_FV")
+            ).alias("POTENCIA_DESCARGA_15MIN"),
             F.col("b.EFICIENCIA_CARGA"),
             F.col("b.EFICIENCIA_DESCARGA"),
             F.col("b.SOC_MIN"),
@@ -246,6 +277,7 @@ def impacto_bateria_q3_intervalo():
             F.col("b.AUTODESCARGA_DIARIA"),
             F.col("s.MUESTRAS"),
             F.col("s.DIAS_CON_DATOS"),
+            F.col("s.DIAS_TIPO_MES"),
         )
     )
 
@@ -287,17 +319,19 @@ def impacto_bateria_q3_cliente_mes():
             "TIPO_DIA",
         )
         .agg(
-            F.sum("DEMANDA_Q3_KWH").alias("CONSUMO_BASE_KWH"),
-            F.sum("GENERACION_SOLAR_SIMULADA_KWH").alias("GENERACION_SOLAR_KWH"),
-            F.sum("ENERGIA_BATERIA_KWH").alias("ENERGIA_BATERIA_NETA_KWH"),
-            F.sum("ENERGIA_CARGA_KWH").alias("ENERGIA_CARGADA_KWH"),
-            F.sum("ENERGIA_DESCARGA_KWH").alias("ENERGIA_DESCARGADA_KWH"),
-            F.sum("DEMANDA_NETA_CON_BATERIA_KWH").alias("DEMANDA_NETA_KWH"),
-            F.sum("EXCEDENTE_NETO_KWH").alias("EXCEDENTE_NETO_KWH"),
-            (
-                F.sum("DEMANDA_REMANENTE_KWH")
-                - F.sum("DEMANDA_NETA_CON_BATERIA_KWH")
+            # Energia del mes = dia tipico promedio x dias con datos (no extrapola)
+            F.sum(F.col("DEMANDA_PROM_KWH") * F.col("DIAS_CON_DATOS")).alias("CONSUMO_BASE_KWH"),
+            F.sum(F.col("GENERACION_SOLAR_SIMULADA_KWH") * F.col("DIAS_CON_DATOS")).alias("GENERACION_SOLAR_KWH"),
+            F.sum(F.col("ENERGIA_BATERIA_KWH") * F.col("DIAS_CON_DATOS")).alias("ENERGIA_BATERIA_NETA_KWH"),
+            F.sum(F.col("ENERGIA_CARGA_KWH") * F.col("DIAS_CON_DATOS")).alias("ENERGIA_CARGADA_KWH"),
+            F.sum(F.col("ENERGIA_DESCARGA_KWH") * F.col("DIAS_CON_DATOS")).alias("ENERGIA_DESCARGADA_KWH"),
+            F.sum(F.col("DEMANDA_NETA_CON_BATERIA_KWH") * F.col("DIAS_CON_DATOS")).alias("DEMANDA_NETA_KWH"),
+            F.sum(F.col("EXCEDENTE_NETO_KWH") * F.col("DIAS_CON_DATOS")).alias("EXCEDENTE_NETO_KWH"),
+            F.sum(
+                (F.col("DEMANDA_REMANENTE_KWH") - F.col("DEMANDA_NETA_CON_BATERIA_KWH"))
+                * F.col("DIAS_CON_DATOS")
             ).alias("ENERGIA_NO_VENDIDA_ADICIONAL_KWH"),
+            F.max("DIAS_TIPO_MES").alias("DIAS_TIPO_MES"),
             F.count("*").alias("INTERVALOS"),
             F.max("CAPACIDAD_KWH").alias("CAPACIDAD_BATERIA_KWH"),
         )
@@ -398,7 +432,7 @@ def impacto_bateria_q3_curva_pato():
             "MINUTO",
         )
         .agg(
-            F.sum("DEMANDA_Q3_KWH").alias("CURVA_BASE"),
+            F.sum("DEMANDA_PROM_KWH").alias("CURVA_BASE"),
             F.sum("GENERACION_SOLAR_SIMULADA_KWH").alias("GENERACION_SOLAR"),
             F.sum("ENERGIA_CARGA_KWH").alias("CARGA_BATERIA"),
             F.sum("ENERGIA_DESCARGA_KWH").alias("DESCARGA_BATERIA"),

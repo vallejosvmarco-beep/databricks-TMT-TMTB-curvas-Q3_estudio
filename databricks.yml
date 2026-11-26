@@ -1,5 +1,7 @@
 bundle:
-  name: tmt_tmtb_curvas_q3
+  # Renombrado 2026-11-20 (antes tmt_tmtb_curvas_q3): curvas Q3 + impacto solar/baterias
+  # + estudio financiero, solo clientes TMT y TMTB de plata_950_carga.
+  name: tmt_tmtb_solar_baterias
 
 include:
   - resources/pipelines/*.yml
@@ -52,6 +54,6 @@ targets:
       source_schema_950: datos
       output_catalog: datosami
       output_schema: datos
-      # Mismo mes disponible en la base (diciembre 2025)
-      periodo_inicio: "2025-12-01"
-      periodo_fin: "2025-12-31"
+      # plata_950_carga tiene 2026-04 a 2026-10 (ventana completa; probado antes con octubre).
+      periodo_inicio: "2026-04-01"
+      periodo_fin: "2026-10-31"

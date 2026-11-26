@@ -1,7 +1,7 @@
 resources:
   pipelines:
     q3_curvas:
-      name: TMT_TMTB_Q3_CURVAS
+      name: TMT_TMTB_Solar_Curvas
 
       catalog: ${var.output_catalog}
       schema: ${var.output_schema}

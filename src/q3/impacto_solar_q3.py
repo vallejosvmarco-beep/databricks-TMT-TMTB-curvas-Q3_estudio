@@ -15,13 +15,22 @@ Unidades (validadas en inspeccion de datos):
   - La conversion kWh = kW * 0.25 NO se aplica porque ENERGIA ya es kWh.
 
 Clasificacion de clientes:
-  - SOLAR_EXISTENTE: NISE con OPERACION = 'Generacion_SGDA_Activo_kWh'
+  - SOLAR_EXISTENTE: NISE con OPERACION = 'Generacion_SGD_Activa_kWh'
+    (antes 'Generacion_SGDA_Activo_kWh')
   - INYECTA_RED: NISE con OPERACION = 'Inyeccion_Activo_kWh'
   - SIN_SOLAR: resto de clientes (elegibles para simulacion)
 
 Regla fundamental:
   ENERGIA_DEJADA_DE_VENDER = AUTOCONSUMO_SOLAR
   (NO es GENERACION_SOLAR_TOTAL)
+
+Escalado (2026-11-20):
+  - Energia: curva PROMEDIO (dia tipico) x DIAS_CON_DATOS (dias con lectura del
+    tipo de dia en el mes, por intervalo). Equivale a la energia medida en
+    plata_950_carga; no extrapola dias sin datos. DIAS_TIPO_MES (dias calendario)
+    se conserva como referencia de completitud. Las columnas *_KWH por intervalo
+    son de un dia tipico; cliente_mes/resumen/global estan en kWh medidos del mes.
+  - Picos y dimensionamiento: curva Q3 (POTENCIA_SOLAR_PICO_CLIENTE, GENERACION_SOLAR_Q3_KWH).
 """
 
 OUTPUT_CATALOG = spark.conf.get("project.output_catalog")
@@ -30,6 +39,10 @@ ESCENARIO = spark.conf.get("project.escenario", "ADOPCION_100")
 
 SOURCE_TABLE = f"{OUTPUT_CATALOG}.{OUTPUT_SCHEMA}.curvas_q3_mensuales"
 PERFIL_SOLAR_TABLE = f"{OUTPUT_CATALOG}.{OUTPUT_SCHEMA}.perfil_solar_q3_referencia"
+OPERACION_GENERACION = "Generacion_SGD_Activa_kWh"
+# Unidades: POTENCIA_SOLAR_PICO_CLIENTE (intervalo) esta en kWh por 15 min;
+# x INTERVALOS_POR_HORA = kW (kWp). Las tablas cliente_mes/resumen/global reportan kW.
+INTERVALOS_POR_HORA = 4
 
 
 def _load_consumo_energia():
@@ -52,8 +65,10 @@ def _load_consumo_energia():
             "HORA",
             "MINUTO",
             F.col("Q3").alias("DEMANDA_Q3_KWH"),
+            F.col("PROMEDIO").alias("DEMANDA_PROM_KWH"),
             "MUESTRAS",
             "DIAS_CON_DATOS",
+            "DIAS_TIPO_MES",
         )
     )
 
@@ -62,7 +77,7 @@ def _load_nise_solar():
     """Identifica NISE con generacion solar (SGDA) e inyeccion a la red."""
     df = spark.read.table(SOURCE_TABLE)
     solar_sgda = (
-        df.filter(F.col("OPERACION") == "Generacion_SGDA_Activo_kWh")
+        df.filter(F.col("OPERACION") == OPERACION_GENERACION)
         .select("NISE")
         .distinct()
     )
@@ -118,6 +133,7 @@ def impacto_solar_q3_intervalo():
                 "TIPO_DIA",
                 "BLOQUE_15M",
                 "FACTOR_SOLAR_NORMALIZADO",
+                "FACTOR_SOLAR_ENERGIA",
             ),
             ["MES", "TIPO_DIA", "BLOQUE_15M"],
             "left",
@@ -154,10 +170,20 @@ def impacto_solar_q3_intervalo():
     # GENERACION_SOLAR_SIMULADA = POTENCIA * FACTOR_SOLAR_NORMALIZADO
     # Como ENERGIA ya esta en kWh y el factor es adimensional,
     # el resultado esta en kWh por intervalo.
-    simulacion = simulacion.withColumn(
-        "GENERACION_SOLAR_SIMULADA_KWH",
-        F.coalesce(F.col("POTENCIA_SOLAR_PICO_CLIENTE"), F.lit(0.0))
-        * F.coalesce(F.col("FACTOR_SOLAR_NORMALIZADO"), F.lit(0.0)),
+    # Energia (dia tipico promedio): POTENCIA x FACTOR_SOLAR_ENERGIA
+    # Pico (Q3): POTENCIA x FACTOR_SOLAR_NORMALIZADO
+    simulacion = (
+        simulacion
+        .withColumn(
+            "GENERACION_SOLAR_SIMULADA_KWH",
+            F.coalesce(F.col("POTENCIA_SOLAR_PICO_CLIENTE"), F.lit(0.0))
+            * F.coalesce(F.col("FACTOR_SOLAR_ENERGIA"), F.lit(0.0)),
+        )
+        .withColumn(
+            "GENERACION_SOLAR_Q3_KWH",
+            F.coalesce(F.col("POTENCIA_SOLAR_PICO_CLIENTE"), F.lit(0.0))
+            * F.coalesce(F.col("FACTOR_SOLAR_NORMALIZADO"), F.lit(0.0)),
+        )
     )
 
     # Autoconsumo, remanente y excedente
@@ -165,19 +191,19 @@ def impacto_solar_q3_intervalo():
         simulacion
         .withColumn(
             "AUTOCONSUMO_SOLAR_KWH",
-            F.least(F.col("DEMANDA_Q3_KWH"), F.col("GENERACION_SOLAR_SIMULADA_KWH")),
+            F.least(F.col("DEMANDA_PROM_KWH"), F.col("GENERACION_SOLAR_SIMULADA_KWH")),
         )
         .withColumn(
             "DEMANDA_REMANENTE_KWH",
             F.greatest(
-                F.col("DEMANDA_Q3_KWH") - F.col("GENERACION_SOLAR_SIMULADA_KWH"),
+                F.col("DEMANDA_PROM_KWH") - F.col("GENERACION_SOLAR_SIMULADA_KWH"),
                 F.lit(0.0),
             ),
         )
         .withColumn(
             "EXCEDENTE_SOLAR_KWH",
             F.greatest(
-                F.col("GENERACION_SOLAR_SIMULADA_KWH") - F.col("DEMANDA_Q3_KWH"),
+                F.col("GENERACION_SOLAR_SIMULADA_KWH") - F.col("DEMANDA_PROM_KWH"),
                 F.lit(0.0),
             ),
         )
@@ -199,15 +225,19 @@ def impacto_solar_q3_intervalo():
         "HORA",
         "MINUTO",
         "DEMANDA_Q3_KWH",
+        "DEMANDA_PROM_KWH",
         "POTENCIA_SOLAR_PICO_CLIENTE",
         "FACTOR_SOLAR_NORMALIZADO",
+        "FACTOR_SOLAR_ENERGIA",
         "GENERACION_SOLAR_SIMULADA_KWH",
+        "GENERACION_SOLAR_Q3_KWH",
         "AUTOCONSUMO_SOLAR_KWH",
         "DEMANDA_REMANENTE_KWH",
         "EXCEDENTE_SOLAR_KWH",
         "ENERGIA_NO_VENDIDA_KWH",
         "MUESTRAS",
         "DIAS_CON_DATOS",
+        "DIAS_TIPO_MES",
     )
 
 
@@ -236,13 +266,18 @@ def impacto_solar_q3_cliente_mes():
             "TIPO_DIA",
         )
         .agg(
-            F.sum("DEMANDA_Q3_KWH").alias("CONSUMO_BASE_KWH"),
-            F.sum("GENERACION_SOLAR_SIMULADA_KWH").alias("GENERACION_SOLAR_KWH"),
-            F.sum("AUTOCONSUMO_SOLAR_KWH").alias("AUTOCONSUMO_SOLAR_KWH"),
-            F.sum("EXCEDENTE_SOLAR_KWH").alias("EXCEDENTE_SOLAR_KWH"),
-            F.sum("DEMANDA_REMANENTE_KWH").alias("ENERGIA_REMANENTE_KWH"),
-            F.sum("ENERGIA_NO_VENDIDA_KWH").alias("ENERGIA_NO_VENDIDA_KWH"),
-            F.max("POTENCIA_SOLAR_PICO_CLIENTE").alias("POTENCIA_SOLAR_PICO_CLIENTE"),
+            # Energia del mes = dia tipico promedio x dias con datos (no extrapola)
+            F.sum(F.col("DEMANDA_PROM_KWH") * F.col("DIAS_CON_DATOS")).alias("CONSUMO_BASE_KWH"),
+            F.sum(F.col("GENERACION_SOLAR_SIMULADA_KWH") * F.col("DIAS_CON_DATOS")).alias("GENERACION_SOLAR_KWH"),
+            F.sum(F.col("AUTOCONSUMO_SOLAR_KWH") * F.col("DIAS_CON_DATOS")).alias("AUTOCONSUMO_SOLAR_KWH"),
+            F.sum(F.col("EXCEDENTE_SOLAR_KWH") * F.col("DIAS_CON_DATOS")).alias("EXCEDENTE_SOLAR_KWH"),
+            F.sum(F.col("DEMANDA_REMANENTE_KWH") * F.col("DIAS_CON_DATOS")).alias("ENERGIA_REMANENTE_KWH"),
+            F.sum(F.col("ENERGIA_NO_VENDIDA_KWH") * F.col("DIAS_CON_DATOS")).alias("ENERGIA_NO_VENDIDA_KWH"),
+            # Potencias en kW (kWh por 15 min x 4)
+            (F.max("POTENCIA_SOLAR_PICO_CLIENTE") * INTERVALOS_POR_HORA).alias("POTENCIA_SOLAR_PICO_KW"),
+            # Pico (Q3) del dia tipico, en kW
+            (F.max("DEMANDA_Q3_KWH") * INTERVALOS_POR_HORA).alias("DEMANDA_PICO_Q3_KW"),
+            F.max("DIAS_TIPO_MES").alias("DIAS_TIPO_MES"),
             F.count("*").alias("INTERVALOS"),
         )
     )
@@ -272,7 +307,7 @@ def impacto_solar_q3_cliente_resumen():
             F.sum("EXCEDENTE_SOLAR_KWH").alias("EXCEDENTE_SOLAR_KWH"),
             F.sum("ENERGIA_REMANENTE_KWH").alias("ENERGIA_REMANENTE_KWH"),
             F.sum("ENERGIA_NO_VENDIDA_KWH").alias("ENERGIA_NO_VENDIDA_KWH"),
-            F.max("POTENCIA_SOLAR_PICO_CLIENTE").alias(
+            F.max("POTENCIA_SOLAR_PICO_KW").alias(
                 "POTENCIA_SOLAR_PICO_CLIENTE_KW"
             ),
         )
@@ -382,7 +417,9 @@ def impacto_solar_q3_curva_pato():
     return (
         intervalo.groupBy("MES", "TIPO_DIA", "BLOQUE_15M", "HORA", "MINUTO")
         .agg(
-            F.sum("DEMANDA_Q3_KWH").alias("CURVA_BASE"),
+            # Curva de dia tipico promedio (energia); CURVA_BASE_Q3 para picos
+            F.sum("DEMANDA_PROM_KWH").alias("CURVA_BASE"),
+            F.sum("DEMANDA_Q3_KWH").alias("CURVA_BASE_Q3"),
             F.sum("GENERACION_SOLAR_SIMULADA_KWH").alias("GENERACION_SOLAR"),
             F.sum("AUTOCONSUMO_SOLAR_KWH").alias("AUTOCONSUMO_SOLAR"),
             F.sum("EXCEDENTE_SOLAR_KWH").alias("EXCEDENTE_SOLAR"),
@@ -398,6 +435,7 @@ def impacto_solar_q3_curva_pato():
             "HORA",
             "MINUTO",
             "CURVA_BASE",
+            "CURVA_BASE_Q3",
             "GENERACION_SOLAR",
             "AUTOCONSUMO_SOLAR",
             "CURVA_NETA",

@@ -7,6 +7,9 @@ SOURCE_TABLE = spark.conf.get("project.source_table_950")
 
 PERIODO_INICIO = spark.conf.get("project.periodo_inicio")
 PERIODO_FIN = spark.conf.get("project.periodo_fin")
+# plata_950_carga trae todos los clientes AMI (PLAN NULL para no TMT/TMTB):
+# este bundle solo analiza TMT y TMTB.
+PLANES = ["TMT", "TMTB"]
 
 SOURCE_FQN = f"{SOURCE_CATALOG}.{SOURCE_SCHEMA}.{SOURCE_TABLE}"
 # Calendario comun (conocimiento_base/src/referencias/ref_calendario.sql), en el mismo
@@ -36,6 +39,7 @@ def curvas_q3_mensuales():
         df
         .filter(
             F.col("NISE").isNotNull()
+            & F.col("PLAN").isin(PLANES)
             & F.col("OPERACION").isNotNull()
             & F.col("FECHA_LECTURA").isNotNull()
         )
@@ -87,6 +91,21 @@ def curvas_q3_mensuales():
         .filter(F.col("VALOR").isNotNull())
     )
 
+    # Dias calendario por PERIODO_MES x TIPO_DIA dentro del periodo: escalan la curva
+    # promedio (dia tipico) a energia mensual. Q3 se usa solo para picos/dimensionamiento.
+    dias_tipo_mes = (
+        calendario
+        .filter(
+            (F.col("FECHA") >= F.lit(PERIODO_INICIO).cast("date"))
+            & (F.col("FECHA") <= F.lit(PERIODO_FIN).cast("date"))
+        )
+        .groupBy(
+            F.trunc(F.col("FECHA"), "month").alias("PERIODO_MES"),
+            F.col("TIPO_DIA_CAL").alias("TIPO_DIA"),
+        )
+        .agg(F.count("*").alias("DIAS_TIPO_MES"))
+    )
+
     return (
         long_df
         .groupBy(
@@ -104,9 +123,11 @@ def curvas_q3_mensuales():
         .agg(
             F.first("PLAN", ignorenulls=True).alias("PLAN"),
             F.expr("percentile_approx(VALOR, 0.75, 10000)").alias("Q3"),
+            F.avg("VALOR").alias("PROMEDIO"),
             F.count("*").alias("MUESTRAS"),
             F.countDistinct("FECHA").alias("DIAS_CON_DATOS"),
         )
+        .join(dias_tipo_mes, ["PERIODO_MES", "TIPO_DIA"], "left")
         .select(
             "NISE",
             "PLAN",
@@ -120,7 +141,9 @@ def curvas_q3_mensuales():
             "BLOQUE_15M",
             "METRICA",
             "Q3",
+            "PROMEDIO",
             "MUESTRAS",
             "DIAS_CON_DATOS",
+            "DIAS_TIPO_MES",
         )
     )

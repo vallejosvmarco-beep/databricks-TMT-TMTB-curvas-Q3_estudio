@@ -1,7 +1,7 @@
 resources:
   pipelines:
     impacto_bateria_q3:
-      name: TMT_TMTB_Q3_IMPACTO_BATERIA
+      name: TMT_TMTB_Solar_Baterias
 
       catalog: ${var.output_catalog}
       schema: ${var.output_schema}
@@ -26,3 +26,6 @@ resources:
             path: ../../src/q3/impacto_bateria_q3.py
         - file:
             path: ../../src/q3/calidad_impacto_bateria.py
+        # Despacho optimo por tarifa (LP, estrategia PUNTA_OPTIMO del estudio)
+        - file:
+            path: ../../src/q3/despacho_optimo_bateria.py

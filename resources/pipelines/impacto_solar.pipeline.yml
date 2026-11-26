@@ -1,7 +1,7 @@
 resources:
   pipelines:
     impacto_solar_q3:
-      name: TMT_TMTB_Q3_IMPACTO_SOLAR
+      name: TMT_TMTB_Solar_Impacto
 
       catalog: ${var.output_catalog}
       schema: ${var.output_schema}

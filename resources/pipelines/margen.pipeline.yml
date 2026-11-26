@@ -1,0 +1,31 @@
+resources:
+  pipelines:
+    margen_comercializacion:
+      # Estudio de margen de comercializacion por cliente TMT/TMTB (sin solar ni baterias).
+      # Lee plata_950_carga (AMI_base), pme_base_plata_pme (PME_base) y las tarifas del
+      # pipeline TMT_TMTB_Solar_Financiero (tarifas_franja_estudio, parametros_estudio_financiero).
+      # Compra al ICE: facturas T-CB (PDF) en facturas_ice_path, parseadas una vez (facturas_ice.py).
+      name: TMT_TMTB_Margen_Comercializacion
+
+      catalog: ${var.output_catalog}
+      schema: ${var.output_schema}
+
+      serverless: true
+      continuous: false
+
+      configuration:
+        project.source_catalog: ${var.source_catalog}
+        project.source_schema_950: ${var.source_schema_950}
+        project.source_table_950: ${var.source_table_950}
+        project.output_catalog: ${var.output_catalog}
+        project.output_schema: ${var.output_schema}
+        project.periodo_inicio: ${var.periodo_inicio}
+        project.periodo_fin: ${var.periodo_fin}
+        project.pme_tabla: ${var.source_catalog}.${var.source_schema_950}.pme_base_plata_pme
+        project.facturas_ice_path: /Volumes/${var.source_catalog}/${var.source_schema_950}/conocimiento_base/CNFL/demanda_CNFL/facturas_ICE/
+
+      libraries:
+        - file:
+            path: ../../src/margen/facturas_ice.py
+        - file:
+            path: ../../src/margen/margen_comercializacion.py

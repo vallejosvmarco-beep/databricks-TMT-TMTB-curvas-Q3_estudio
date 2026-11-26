@@ -7,6 +7,9 @@ databricks.local.yml
 # Dashboard assets creados accidentalmente en workspace
 # (los archivos JSON fuente estan en dashboards/*.json)
 dashboards/*.lvdash.json
+# Excepciones: fuentes de dashboards que el bundle despliega directamente
+!dashboards/margen_comercializacion.lvdash.json
+!dashboards/financiero_escenarios.lvdash.json
 dashboards/.placeholder
 
 # Python

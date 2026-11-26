@@ -1,0 +1,2233 @@
+{
+  "datasets": [
+    {
+      "name": "energia_cliente",
+      "displayName": "Energia vs potencia por cliente",
+      "queryLines": [
+        "WITH perfil AS (\n",
+        "  SELECT\n",
+        "    NISE,\n",
+        "    SUM(\n",
+        "      CASE\n",
+        "        WHEN FRANJA = 'PUNTA' THEN KWH\n",
+        "      END\n",
+        "    )\n",
+        "      / SUM(KWH) AS PCT_PUNTA,\n",
+        "    SUM(\n",
+        "      CASE\n",
+        "        WHEN FRANJA = 'VALLE' THEN KWH\n",
+        "      END\n",
+        "    )\n",
+        "      / SUM(KWH) AS PCT_VALLE,\n",
+        "    SUM(\n",
+        "      CASE\n",
+        "        WHEN FRANJA = 'NOCHE' THEN KWH\n",
+        "      END\n",
+        "    )\n",
+        "      / SUM(KWH) AS PCT_NOCHE\n",
+        "  FROM\n",
+        "    datosami.datos.margen_cliente_franja_mes\n",
+        "  GROUP BY\n",
+        "    NISE\n",
+        "),\n",
+        "fact AS (\n",
+        "  SELECT\n",
+        "    CAST(nis AS STRING) AS NISE,\n",
+        "    MAX(nombre_factura) AS nombre_factura\n",
+        "  FROM\n",
+        "    (\n",
+        "      SELECT\n",
+        "        nis,\n",
+        "        nombre_factura\n",
+        "      FROM\n",
+        "        datosami.datos.tmt\n",
+        "      UNION ALL\n",
+        "      SELECT\n",
+        "        nis,\n",
+        "        nombre_factura\n",
+        "      FROM\n",
+        "        datosami.datos.tmtb\n",
+        "    )\n",
+        "  GROUP BY\n",
+        "    1\n",
+        ")\n",
+        "SELECT\n",
+        "  c.NISE,\n",
+        "  COALESCE(NULLIF(TRIM(s.NOMBRE_ABONADO), ''), f.nombre_factura, 'Sin nombre') AS CLIENTE,\n",
+        "  s.DESC_TIPO_CIU AS ACTIVIDAD,\n",
+        "  CONCAT(\n",
+        "    LEFT(COALESCE(NULLIF(TRIM(s.NOMBRE_ABONADO), ''), f.nombre_factura, 'Sin nombre'), 30),\n",
+        "    ' (',\n",
+        "    c.NISE,\n",
+        "    ')'\n",
+        "  ) AS ETIQUETA,\n",
+        "  c.PLAN,\n",
+        "  COALESCE(c.DESC_SECTOR, 'Sin sector') AS SECTOR,\n",
+        "  c.RANKING,\n",
+        "  CASE\n",
+        "    WHEN c.DATOS_CONFIABLES THEN 'Si'\n",
+        "    ELSE 'No'\n",
+        "  END AS CONFIABLE,\n",
+        "  ROUND(c.COMPLETITUD * 100, 1) AS COMPLETITUD_PCT,\n",
+        "  c.KWH / 1e6 AS GWH,\n",
+        "  p.PCT_PUNTA,\n",
+        "  p.PCT_VALLE,\n",
+        "  p.PCT_NOCHE,\n",
+        "  c.FACTOR_CARGA,\n",
+        "  c.MARGEN_ENERGIA_CRC / 1e6 AS MARGEN_ENERGIA_M_CRC,\n",
+        "  c.MARGEN_POTENCIA_CRC / 1e6 AS MARGEN_POTENCIA_M_CRC,\n",
+        "  c.MARGEN_NETO_CRC / 1e6 AS MARGEN_NETO_M_CRC,\n",
+        "  c.MARGEN_CRC_KWH,\n",
+        "  CASE\n",
+        "    WHEN c.MARGEN_ENERGIA_CRC < 0 THEN 1\n",
+        "    ELSE 0\n",
+        "  END AS ENERGIA_NEGATIVA,\n",
+        "  ROW_NUMBER() OVER (PARTITION BY c.PLAN ORDER BY c.MARGEN_ENERGIA_CRC) AS RANK_ENERGIA_PLAN\n",
+        "FROM\n",
+        "  datosami.datos.margen_cliente c\n",
+        "    JOIN perfil p\n",
+        "      ON p.NISE = c.NISE\n",
+        "    LEFT JOIN datosami.datos.clientes_base_plata_clientes s\n",
+        "      ON s.NISE = c.NISE\n",
+        "    LEFT JOIN fact f\n",
+        "      ON f.NISE = c.NISE"
+      ]
+    },
+    {
+      "name": "clientes_mv",
+      "displayName": "Clientes - margen (metricas)",
+      "config": {
+        "version": "1.1",
+        "source": "datosami.datos.margen_cliente",
+        "dimensions": [
+          {
+            "name": "PLAN",
+            "expr": "PLAN"
+          },
+          {
+            "name": "NISE",
+            "expr": "NISE"
+          },
+          {
+            "name": "Sector",
+            "expr": "COALESCE(DESC_SECTOR, 'Sin sector')"
+          },
+          {
+            "name": "Segmento",
+            "expr": "SEGMENTO"
+          },
+          {
+            "name": "Datos confiables",
+            "expr": "CASE WHEN DATOS_CONFIABLES THEN 'Si' ELSE 'No' END"
+          }
+        ],
+        "measures": [
+          {
+            "name": "Clientes",
+            "expr": "COUNT(NISE)"
+          },
+          {
+            "name": "Margen anualizado (M CRC)",
+            "expr": "SUM(MARGEN_NETO_ANUALIZADO_CRC) / 1e6"
+          },
+          {
+            "name": "Ingreso anualizado (M CRC)",
+            "expr": "SUM(INGRESO_ANUALIZADO_CRC) / 1e6"
+          },
+          {
+            "name": "Margen sobre ingreso",
+            "expr": "SUM(MARGEN_NETO_CRC) / SUM(INGRESO_TOTAL_CRC)"
+          },
+          {
+            "name": "Margen energia periodo (M CRC)",
+            "expr": "SUM(MARGEN_ENERGIA_CRC) / 1e6"
+          },
+          {
+            "name": "Margen potencia periodo (M CRC)",
+            "expr": "SUM(MARGEN_POTENCIA_CRC) / 1e6"
+          },
+          {
+            "name": "Energia anualizada (GWh)",
+            "expr": "SUM(KWH_ANUALIZADO) / 1e6"
+          }
+        ]
+      }
+    },
+    {
+      "name": "mes_mv",
+      "displayName": "Cliente-mes - margen (metricas)",
+      "config": {
+        "version": "1.1",
+        "source": "datosami.datos.margen_cliente_mes",
+        "dimensions": [
+          {
+            "name": "PLAN",
+            "expr": "PLAN"
+          },
+          {
+            "name": "Mes",
+            "expr": "PERIODO_MES"
+          }
+        ],
+        "measures": [
+          {
+            "name": "Ingreso (M CRC)",
+            "expr": "SUM(INGRESO_TOTAL_CRC) / 1e6"
+          },
+          {
+            "name": "Costo de compra (M CRC)",
+            "expr": "SUM(COSTO_TOTAL_CRC) / 1e6"
+          },
+          {
+            "name": "Margen neto (M CRC)",
+            "expr": "SUM(MARGEN_NETO_CRC) / 1e6"
+          },
+          {
+            "name": "Margen sobre ingreso",
+            "expr": "SUM(MARGEN_NETO_CRC) / SUM(INGRESO_TOTAL_CRC)"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ranking",
+      "displayName": "Ranking de clientes",
+      "queryLines": [
+        "WITH fact AS (\n",
+        "  SELECT\n",
+        "    CAST(nis AS STRING) AS NISE,\n",
+        "    MAX(nombre_factura) AS nombre_factura\n",
+        "  FROM\n",
+        "    (\n",
+        "      SELECT\n",
+        "        nis,\n",
+        "        nombre_factura\n",
+        "      FROM\n",
+        "        datosami.datos.tmt\n",
+        "      UNION ALL\n",
+        "      SELECT\n",
+        "        nis,\n",
+        "        nombre_factura\n",
+        "      FROM\n",
+        "        datosami.datos.tmtb\n",
+        "    )\n",
+        "  GROUP BY\n",
+        "    1\n",
+        ")\n",
+        "SELECT\n",
+        "  c.RANKING,\n",
+        "  c.RANKING_CONFIABLE,\n",
+        "  c.NISE,\n",
+        "  COALESCE(NULLIF(TRIM(s.NOMBRE_ABONADO), ''), f.nombre_factura, 'Sin nombre') AS CLIENTE,\n",
+        "  s.DESC_TIPO_CIU AS ACTIVIDAD,\n",
+        "  CONCAT(\n",
+        "    LEFT(COALESCE(NULLIF(TRIM(s.NOMBRE_ABONADO), ''), f.nombre_factura, 'Sin nombre'), 30),\n",
+        "    ' (',\n",
+        "    c.NISE,\n",
+        "    ')'\n",
+        "  ) AS ETIQUETA,\n",
+        "  c.PLAN,\n",
+        "  COALESCE(c.DESC_SECTOR, 'Sin sector') AS SECTOR,\n",
+        "  c.SEGMENTO,\n",
+        "  CASE\n",
+        "    WHEN c.DATOS_CONFIABLES THEN 'Si'\n",
+        "    ELSE 'No'\n",
+        "  END AS CONFIABLE,\n",
+        "  ROUND(c.COMPLETITUD * 100, 1) AS COMPLETITUD_PCT,\n",
+        "  c.KWH_ANUALIZADO / 1e6 AS GWH_ANUAL,\n",
+        "  c.INGRESO_ANUALIZADO_CRC / 1e6 AS INGRESO_ANUAL_M_CRC,\n",
+        "  c.MARGEN_NETO_ANUALIZADO_CRC / 1e6 AS MARGEN_ANUAL_M_CRC,\n",
+        "  c.MARGEN_PCT / 100 AS MARGEN_PCT,\n",
+        "  c.MARGEN_CRC_KWH,\n",
+        "  c.MARGEN_ENERGIA_CRC / 1e6 AS MARGEN_ENERGIA_M_CRC,\n",
+        "  c.MARGEN_POTENCIA_CRC / 1e6 AS MARGEN_POTENCIA_M_CRC,\n",
+        "  c.FACTOR_CARGA,\n",
+        "  c.FACTOR_COINCIDENCIA_PUNTA,\n",
+        "  c.PARETO_ACUMULADO_PCT\n",
+        "FROM\n",
+        "  datosami.datos.margen_cliente c\n",
+        "    LEFT JOIN datosami.datos.clientes_base_plata_clientes s\n",
+        "      ON s.NISE = c.NISE\n",
+        "    LEFT JOIN fact f\n",
+        "      ON f.NISE = c.NISE"
+      ]
+    },
+    {
+      "name": "calidad",
+      "displayName": "Calidad del estudio",
+      "queryLines": [
+        "SELECT CHECK, VALOR, FALLA, DETALLE FROM datosami.datos.margen_calidad"
+      ]
+    },
+    {
+      "name": "picos",
+      "displayName": "Pico facturado por el ICE por mes",
+      "queryLines": [
+        "SELECT PERIODO_MES, FRANJA, INSTANTE_PICO, BLOQUE_PICO, FUENTE_PICO, ROUND(MW_FACTURA_ICE, 1) AS MW_FACTURA_ICE,\n",
+        "  INSTANTE_PICO_PME, ROUND(MW_PME, 1) AS MW_PME\n",
+        "FROM datosami.datos.margen_pico_sistema"
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "name": "resumen",
+      "displayName": "Resumen",
+      "layout": [
+        {
+          "widget": {
+            "name": "txt_intro",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Margen de comercializacion TMT/TMTB\n",
+                "Margen = venta (energia por franja + potencia maxima por franja, tarifas oficiales) - compra de CNFL (energia + peaje + potencia en el pico del sistema). Datos medidos AMI del periodo; anualizado: energia por dia con datos x 365, potencia por mes x 12. Filtre por *Datos confiables = Si* (completitud >= 90%) para rankings."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "f_plan",
+            "queries": [
+              {
+                "name": "q_clientes",
+                "query": {
+                  "datasetName": "clientes_mv",
+                  "fields": [
+                    {
+                      "name": "PLAN",
+                      "expression": "`PLAN`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "q_ranking",
+                "query": {
+                  "datasetName": "ranking",
+                  "fields": [
+                    {
+                      "name": "PLAN",
+                      "expression": "`PLAN`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "q_mes",
+                "query": {
+                  "datasetName": "mes_mv",
+                  "fields": [
+                    {
+                      "name": "PLAN",
+                      "expression": "`PLAN`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "PLAN",
+                    "queryName": "q_clientes",
+                    "displayName": "Plan"
+                  },
+                  {
+                    "fieldName": "PLAN",
+                    "queryName": "q_ranking",
+                    "displayName": "Plan"
+                  },
+                  {
+                    "fieldName": "PLAN",
+                    "queryName": "q_mes",
+                    "displayName": "Plan"
+                  }
+                ]
+              },
+              "frame": {
+                "title": "Plan",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 3,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "f_confiable",
+            "queries": [
+              {
+                "name": "q_clientes",
+                "query": {
+                  "datasetName": "clientes_mv",
+                  "fields": [
+                    {
+                      "name": "Datos confiables",
+                      "expression": "`Datos confiables`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-single-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "Datos confiables",
+                    "queryName": "q_clientes",
+                    "displayName": "Datos confiables"
+                  }
+                ]
+              },
+              "frame": {
+                "title": "Datos confiables",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 2,
+            "width": 3,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "k_clientes",
+            "queries": [
+              {
+                "name": "main",
+                "query": {
+                  "datasetName": "clientes_mv",
+                  "fields": [
+                    {
+                      "name": "clientes",
+                      "expression": "MEASURE(`Clientes`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "clientes",
+                  "displayName": "Clientes"
+                }
+              },
+              "frame": {
+                "title": "Clientes",
+                "showTitle": true
+              },
+              "data": {
+                "queryName": "main"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 4,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "k_margen",
+            "queries": [
+              {
+                "name": "main",
+                "query": {
+                  "datasetName": "clientes_mv",
+                  "fields": [
+                    {
+                      "name": "margen",
+                      "expression": "MEASURE(`Margen anualizado (M CRC)`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "margen",
+                  "displayName": "Margen anualizado (M CRC)",
+                  "format": {
+                    "type": "number-plain",
+                    "abbreviation": "none",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 0
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "title": "Margen neto anualizado (M CRC)",
+                "showTitle": true
+              },
+              "data": {
+                "queryName": "main"
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 4,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "k_ingreso",
+            "queries": [
+              {
+                "name": "main",
+                "query": {
+                  "datasetName": "clientes_mv",
+                  "fields": [
+                    {
+                      "name": "ingreso",
+                      "expression": "MEASURE(`Ingreso anualizado (M CRC)`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "ingreso",
+                  "displayName": "Ingreso anualizado (M CRC)",
+                  "format": {
+                    "type": "number-plain",
+                    "abbreviation": "none",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 0
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "title": "Ingreso anualizado (M CRC)",
+                "showTitle": true
+              },
+              "data": {
+                "queryName": "main"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 4,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "k_pct",
+            "queries": [
+              {
+                "name": "main",
+                "query": {
+                  "datasetName": "clientes_mv",
+                  "fields": [
+                    {
+                      "name": "pct",
+                      "expression": "MEASURE(`Margen sobre ingreso`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "pct",
+                  "displayName": "Margen sobre ingreso",
+                  "format": {
+                    "type": "number-percent",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 1
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "title": "Margen sobre ingreso (periodo)",
+                "showTitle": true
+              },
+              "data": {
+                "queryName": "main"
+              }
+            }
+          },
+          "position": {
+            "x": 9,
+            "y": 4,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "b_componentes",
+            "queries": [
+              {
+                "name": "main",
+                "query": {
+                  "datasetName": "clientes_mv",
+                  "fields": [
+                    {
+                      "name": "PLAN",
+                      "expression": "`PLAN`"
+                    },
+                    {
+                      "name": "m_energia",
+                      "expression": "MEASURE(`Margen energia periodo (M CRC)`)"
+                    },
+                    {
+                      "name": "m_potencia",
+                      "expression": "MEASURE(`Margen potencia periodo (M CRC)`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "PLAN",
+                  "displayName": "Plan",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "fields": [
+                    {
+                      "fieldName": "m_energia",
+                      "displayName": "Margen de energia (M CRC)"
+                    },
+                    {
+                      "fieldName": "m_potencia",
+                      "displayName": "Margen de potencia (M CRC)"
+                    }
+                  ]
+                }
+              },
+              "mark": {
+                "layout": "group"
+              },
+              "frame": {
+                "title": "De donde sale el margen: energia vs potencia (periodo)",
+                "showTitle": true
+              },
+              "data": {
+                "queryName": "main"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 7,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "l_mensual",
+            "queries": [
+              {
+                "name": "main",
+                "query": {
+                  "datasetName": "mes_mv",
+                  "fields": [
+                    {
+                      "name": "mes",
+                      "expression": "DATE_TRUNC('MONTH', `Mes`)"
+                    },
+                    {
+                      "name": "PLAN",
+                      "expression": "`PLAN`"
+                    },
+                    {
+                      "name": "margen",
+                      "expression": "MEASURE(`Margen neto (M CRC)`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "mes",
+                  "displayName": "Mes",
+                  "scale": {
+                    "type": "temporal"
+                  }
+                },
+                "y": {
+                  "fieldName": "margen",
+                  "displayName": "Margen neto (M CRC)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "PLAN",
+                  "displayName": "Plan",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "frame": {
+                "title": "Margen neto mensual por plan",
+                "showTitle": true
+              },
+              "data": {
+                "queryName": "main"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 7,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "b_segmento",
+            "queries": [
+              {
+                "name": "main",
+                "query": {
+                  "datasetName": "clientes_mv",
+                  "fields": [
+                    {
+                      "name": "Segmento",
+                      "expression": "`Segmento`"
+                    },
+                    {
+                      "name": "clientes",
+                      "expression": "MEASURE(`Clientes`)"
+                    },
+                    {
+                      "name": "margen",
+                      "expression": "MEASURE(`Margen anualizado (M CRC)`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "Segmento",
+                  "displayName": "Segmento Pareto",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "natural-order"
+                    }
+                  }
+                },
+                "y": {
+                  "fieldName": "margen",
+                  "displayName": "Margen anualizado (M CRC)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "label": {
+                  "show": true
+                }
+              },
+              "frame": {
+                "title": "Margen por segmento Pareto (A = 80% del margen)",
+                "showTitle": true
+              },
+              "data": {
+                "queryName": "main"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 13,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "b_sector",
+            "queries": [
+              {
+                "name": "main",
+                "query": {
+                  "datasetName": "clientes_mv",
+                  "fields": [
+                    {
+                      "name": "Sector",
+                      "expression": "`Sector`"
+                    },
+                    {
+                      "name": "PLAN",
+                      "expression": "`PLAN`"
+                    },
+                    {
+                      "name": "margen",
+                      "expression": "MEASURE(`Margen anualizado (M CRC)`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "Sector",
+                  "displayName": "Sector",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "measure-reversed",
+                      "measure": {
+                        "fieldName": "margen"
+                      }
+                    }
+                  }
+                },
+                "y": {
+                  "fieldName": "margen",
+                  "displayName": "Margen anualizado (M CRC)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "PLAN",
+                  "displayName": "Plan",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "mark": {
+                "layout": "stack"
+              },
+              "frame": {
+                "title": "Margen anualizado por sector",
+                "showTitle": true
+              },
+              "data": {
+                "queryName": "main"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 13,
+            "width": 6,
+            "height": 6
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
+    },
+    {
+      "name": "ranking_page",
+      "displayName": "Ranking de clientes",
+      "layout": [
+        {
+          "widget": {
+            "name": "f_plan_rk",
+            "queries": [
+              {
+                "name": "q_ranking",
+                "query": {
+                  "datasetName": "ranking",
+                  "fields": [
+                    {
+                      "name": "PLAN",
+                      "expression": "`PLAN`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "PLAN",
+                    "queryName": "q_ranking",
+                    "displayName": "Plan"
+                  }
+                ]
+              },
+              "frame": {
+                "title": "Plan",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 3,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "f_conf_rk",
+            "queries": [
+              {
+                "name": "q_ranking",
+                "query": {
+                  "datasetName": "ranking",
+                  "fields": [
+                    {
+                      "name": "CONFIABLE",
+                      "expression": "`CONFIABLE`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-single-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "CONFIABLE",
+                    "queryName": "q_ranking",
+                    "displayName": "Datos confiables"
+                  }
+                ]
+              },
+              "frame": {
+                "title": "Datos confiables",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 0,
+            "width": 3,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "f_seg_rk",
+            "queries": [
+              {
+                "name": "q_ranking",
+                "query": {
+                  "datasetName": "ranking",
+                  "fields": [
+                    {
+                      "name": "SEGMENTO",
+                      "expression": "`SEGMENTO`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "SEGMENTO",
+                    "queryName": "q_ranking",
+                    "displayName": "Segmento"
+                  }
+                ]
+              },
+              "frame": {
+                "title": "Segmento Pareto",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 0,
+            "width": 3,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "b_top20",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ranking",
+                  "fields": [
+                    {
+                      "name": "sum(MARGEN_ANUAL_M_CRC)",
+                      "expression": "SUM(`MARGEN_ANUAL_M_CRC`)"
+                    },
+                    {
+                      "name": "ETIQUETA",
+                      "expression": "`ETIQUETA`"
+                    }
+                  ],
+                  "filters": [
+                    {
+                      "expression": "`RANKING_CONFIABLE` <= 20"
+                    }
+                  ],
+                  "disaggregated": false,
+                  "orders": [
+                    {
+                      "direction": "DESC",
+                      "expression": "SUM(`MARGEN_ANUAL_M_CRC`)"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "value": "Top 20 clientes por margen anualizado (datos confiables)",
+                  "fields": []
+                }
+              },
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "sum(MARGEN_ANUAL_M_CRC)",
+                  "displayName": "Margen anualizado (M CRC)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "y": {
+                  "fieldName": "ETIQUETA",
+                  "displayName": "Cliente (NISE)",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "measure-reversed",
+                      "measure": {
+                        "fieldName": "sum(MARGEN_ANUAL_M_CRC)"
+                      }
+                    }
+                  }
+                },
+                "label": {
+                  "show": true
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 6,
+            "height": 9
+          }
+        },
+        {
+          "widget": {
+            "name": "l_pareto",
+            "queries": [
+              {
+                "name": "main",
+                "query": {
+                  "datasetName": "ranking",
+                  "fields": [
+                    {
+                      "name": "RANKING",
+                      "expression": "`RANKING`"
+                    },
+                    {
+                      "name": "PARETO_ACUMULADO_PCT",
+                      "expression": "`PARETO_ACUMULADO_PCT`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "RANKING",
+                  "displayName": "Clientes ordenados por margen",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "y": {
+                  "fieldName": "PARETO_ACUMULADO_PCT",
+                  "displayName": "% acumulado del margen",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              },
+              "annotations": [
+                {
+                  "type": "horizontal-line",
+                  "encodings": {
+                    "y": {
+                      "dataValue": "80",
+                      "dataType": "DOUBLE"
+                    },
+                    "label": {
+                      "value": "80%"
+                    }
+                  }
+                }
+              ],
+              "frame": {
+                "title": "Curva de Pareto del margen (todos los clientes)",
+                "showTitle": true
+              },
+              "data": {
+                "queryName": "main"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 2,
+            "width": 6,
+            "height": 9
+          }
+        },
+        {
+          "widget": {
+            "name": "t_ranking",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ranking",
+                  "fields": [
+                    {
+                      "name": "RANKING",
+                      "expression": "`RANKING`"
+                    },
+                    {
+                      "name": "RANKING_CONFIABLE",
+                      "expression": "`RANKING_CONFIABLE`"
+                    },
+                    {
+                      "name": "NISE",
+                      "expression": "`NISE`"
+                    },
+                    {
+                      "name": "CLIENTE",
+                      "expression": "`CLIENTE`"
+                    },
+                    {
+                      "name": "ACTIVIDAD",
+                      "expression": "`ACTIVIDAD`"
+                    },
+                    {
+                      "name": "PLAN",
+                      "expression": "`PLAN`"
+                    },
+                    {
+                      "name": "SECTOR",
+                      "expression": "`SECTOR`"
+                    },
+                    {
+                      "name": "SEGMENTO",
+                      "expression": "`SEGMENTO`"
+                    },
+                    {
+                      "name": "CONFIABLE",
+                      "expression": "`CONFIABLE`"
+                    },
+                    {
+                      "name": "COMPLETITUD_PCT",
+                      "expression": "`COMPLETITUD_PCT`"
+                    },
+                    {
+                      "name": "GWH_ANUAL",
+                      "expression": "`GWH_ANUAL`"
+                    },
+                    {
+                      "name": "INGRESO_ANUAL_M_CRC",
+                      "expression": "`INGRESO_ANUAL_M_CRC`"
+                    },
+                    {
+                      "name": "MARGEN_ANUAL_M_CRC",
+                      "expression": "`MARGEN_ANUAL_M_CRC`"
+                    },
+                    {
+                      "name": "MARGEN_PCT",
+                      "expression": "`MARGEN_PCT`"
+                    },
+                    {
+                      "name": "MARGEN_CRC_KWH",
+                      "expression": "`MARGEN_CRC_KWH`"
+                    },
+                    {
+                      "name": "MARGEN_ENERGIA_M_CRC",
+                      "expression": "`MARGEN_ENERGIA_M_CRC`"
+                    },
+                    {
+                      "name": "MARGEN_POTENCIA_M_CRC",
+                      "expression": "`MARGEN_POTENCIA_M_CRC`"
+                    },
+                    {
+                      "name": "FACTOR_CARGA",
+                      "expression": "`FACTOR_CARGA`"
+                    },
+                    {
+                      "name": "FACTOR_COINCIDENCIA_PUNTA",
+                      "expression": "`FACTOR_COINCIDENCIA_PUNTA`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "value": "Ranking de clientes por margen neto anualizado",
+                  "fields": []
+                }
+              },
+              "version": 2,
+              "rowsPerPage": 25,
+              "freezeUpToColumnNumber": 4,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "RANKING",
+                    "displayName": "Ranking"
+                  },
+                  {
+                    "fieldName": "RANKING_CONFIABLE",
+                    "displayName": "Ranking confiable"
+                  },
+                  {
+                    "fieldName": "NISE",
+                    "displayName": "NISE"
+                  },
+                  {
+                    "fieldName": "CLIENTE",
+                    "useForSearch": true,
+                    "displayName": "Cliente"
+                  },
+                  {
+                    "fieldName": "ACTIVIDAD",
+                    "displayName": "Actividad"
+                  },
+                  {
+                    "fieldName": "PLAN",
+                    "displayName": "Plan"
+                  },
+                  {
+                    "fieldName": "SECTOR",
+                    "displayName": "Sector"
+                  },
+                  {
+                    "fieldName": "SEGMENTO",
+                    "displayName": "Segmento"
+                  },
+                  {
+                    "fieldName": "CONFIABLE",
+                    "displayName": "Datos confiables"
+                  },
+                  {
+                    "fieldName": "COMPLETITUD_PCT",
+                    "displayName": "Completitud %"
+                  },
+                  {
+                    "fieldName": "GWH_ANUAL",
+                    "displayName": "GWh anual"
+                  },
+                  {
+                    "fieldName": "INGRESO_ANUAL_M_CRC",
+                    "displayName": "Ingreso anual (M CRC)"
+                  },
+                  {
+                    "fieldName": "MARGEN_ANUAL_M_CRC",
+                    "displayName": "Margen anual (M CRC)"
+                  },
+                  {
+                    "fieldName": "MARGEN_PCT",
+                    "format": {
+                      "type": "number-percent",
+                      "decimalPlaces": {
+                        "type": "max",
+                        "places": 1
+                      }
+                    },
+                    "displayName": "Margen %"
+                  },
+                  {
+                    "fieldName": "MARGEN_CRC_KWH",
+                    "displayName": "Margen CRC/kWh"
+                  },
+                  {
+                    "fieldName": "MARGEN_ENERGIA_M_CRC",
+                    "displayName": "Margen energia periodo (M CRC)"
+                  },
+                  {
+                    "fieldName": "MARGEN_POTENCIA_M_CRC",
+                    "displayName": "Margen potencia periodo (M CRC)"
+                  },
+                  {
+                    "fieldName": "FACTOR_CARGA",
+                    "displayName": "Factor de carga"
+                  },
+                  {
+                    "fieldName": "FACTOR_COINCIDENCIA_PUNTA",
+                    "displayName": "Factor de coincidencia punta"
+                  }
+                ]
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 11,
+            "width": 12,
+            "height": 10
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
+    },
+    {
+      "name": "energia_potencia",
+      "displayName": "Energia vs potencia",
+      "layout": [
+        {
+          "widget": {
+            "name": "txt_energia",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Por que TMT pierde dinero en energia\n",
+                "En valle y noche la tarifa de venta TMT (25.06 y 18.05 CRC/kWh) es menor que la compra + peaje (40.56 y 35.99); solo la punta deja margen (+2.93). El margen sale de la potencia (venta punta 8,791 vs compra 1,954 CRC/kW-mes). Por eso la perdida en energia crece con el volumen, y un factor de carga alto (demanda pareja) deja menos margen por kWh."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "f_plan_en",
+            "queries": [
+              {
+                "name": "q_en",
+                "query": {
+                  "datasetName": "energia_cliente",
+                  "fields": [
+                    {
+                      "name": "PLAN",
+                      "expression": "`PLAN`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "PLAN",
+                    "queryName": "q_en",
+                    "displayName": "Plan"
+                  }
+                ]
+              },
+              "selection": {
+                "defaultSelection": {
+                  "values": {
+                    "dataType": "STRING",
+                    "values": [
+                      {
+                        "value": "TMT"
+                      }
+                    ]
+                  }
+                }
+              },
+              "frame": {
+                "title": "Plan",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 3,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "f_conf_en",
+            "queries": [
+              {
+                "name": "q_en",
+                "query": {
+                  "datasetName": "energia_cliente",
+                  "fields": [
+                    {
+                      "name": "CONFIABLE",
+                      "expression": "`CONFIABLE`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-single-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "CONFIABLE",
+                    "queryName": "q_en",
+                    "displayName": "Datos confiables"
+                  }
+                ]
+              },
+              "frame": {
+                "title": "Datos confiables",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 2,
+            "width": 3,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "k_neg",
+            "queries": [
+              {
+                "name": "main",
+                "query": {
+                  "datasetName": "energia_cliente",
+                  "fields": [
+                    {
+                      "name": "neg",
+                      "expression": "SUM(`ENERGIA_NEGATIVA`)"
+                    },
+                    {
+                      "name": "tot",
+                      "expression": "COUNT(`NISE`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "neg",
+                  "displayName": "Clientes con margen de energia negativo"
+                },
+                "target": {
+                  "fieldName": "tot",
+                  "displayName": "Clientes"
+                }
+              },
+              "frame": {
+                "title": "Clientes con margen de energia negativo (de total)",
+                "showTitle": true
+              },
+              "data": {
+                "queryName": "main"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 2,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "k_m_en",
+            "queries": [
+              {
+                "name": "main",
+                "query": {
+                  "datasetName": "energia_cliente",
+                  "fields": [
+                    {
+                      "name": "v",
+                      "expression": "SUM(`MARGEN_ENERGIA_M_CRC`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "v",
+                  "displayName": "Margen de energia (M CRC)",
+                  "format": {
+                    "type": "number-plain",
+                    "abbreviation": "none",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 0
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "title": "Margen de energia periodo (M CRC)",
+                "showTitle": true
+              },
+              "data": {
+                "queryName": "main"
+              }
+            }
+          },
+          "position": {
+            "x": 8,
+            "y": 2,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "k_m_pot",
+            "queries": [
+              {
+                "name": "main",
+                "query": {
+                  "datasetName": "energia_cliente",
+                  "fields": [
+                    {
+                      "name": "v",
+                      "expression": "SUM(`MARGEN_POTENCIA_M_CRC`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "v",
+                  "displayName": "Margen de potencia (M CRC)",
+                  "format": {
+                    "type": "number-plain",
+                    "abbreviation": "none",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 0
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "title": "Margen de potencia periodo (M CRC)",
+                "showTitle": true
+              },
+              "data": {
+                "queryName": "main"
+              }
+            }
+          },
+          "position": {
+            "x": 10,
+            "y": 2,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "b_peor_energia",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "energia_cliente",
+                  "fields": [
+                    {
+                      "name": "sum(MARGEN_ENERGIA_M_CRC)",
+                      "expression": "SUM(`MARGEN_ENERGIA_M_CRC`)"
+                    },
+                    {
+                      "name": "sum(MARGEN_POTENCIA_M_CRC)",
+                      "expression": "SUM(`MARGEN_POTENCIA_M_CRC`)"
+                    },
+                    {
+                      "name": "ETIQUETA",
+                      "expression": "`ETIQUETA`"
+                    }
+                  ],
+                  "filters": [
+                    {
+                      "expression": "`RANK_ENERGIA_PLAN` <= 15"
+                    }
+                  ],
+                  "disaggregated": false,
+                  "orders": [
+                    {
+                      "direction": "ASC",
+                      "expression": "SUM(`MARGEN_ENERGIA_M_CRC`)"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "value": "15 clientes con margen de energia mas negativo (por plan): energia vs potencia",
+                  "fields": []
+                }
+              },
+              "version": 3,
+              "mark": {
+                "colors": [
+                  "#C0392B",
+                  "#2272B4"
+                ],
+                "layout": "group"
+              },
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "fields": [
+                    {
+                      "fieldName": "sum(MARGEN_ENERGIA_M_CRC)",
+                      "displayName": "Margen de energia (M CRC)"
+                    },
+                    {
+                      "fieldName": "sum(MARGEN_POTENCIA_M_CRC)",
+                      "displayName": "Margen de potencia (M CRC)"
+                    }
+                  ]
+                },
+                "y": {
+                  "fieldName": "ETIQUETA",
+                  "displayName": "Cliente (NISE)",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "measure",
+                      "measure": {
+                        "fieldName": "sum(MARGEN_ENERGIA_M_CRC)"
+                      }
+                    }
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 4,
+            "width": 6,
+            "height": 10
+          }
+        },
+        {
+          "widget": {
+            "name": "s_fc",
+            "queries": [
+              {
+                "name": "main",
+                "query": {
+                  "datasetName": "energia_cliente",
+                  "fields": [
+                    {
+                      "name": "FACTOR_CARGA",
+                      "expression": "`FACTOR_CARGA`"
+                    },
+                    {
+                      "name": "MARGEN_CRC_KWH",
+                      "expression": "`MARGEN_CRC_KWH`"
+                    },
+                    {
+                      "name": "PLAN",
+                      "expression": "`PLAN`"
+                    },
+                    {
+                      "name": "GWH",
+                      "expression": "`GWH`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "scatter",
+              "encodings": {
+                "x": {
+                  "fieldName": "FACTOR_CARGA",
+                  "displayName": "Factor de carga",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "y": {
+                  "fieldName": "MARGEN_CRC_KWH",
+                  "displayName": "Margen neto (CRC/kWh)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "PLAN",
+                  "displayName": "Plan",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "size": {
+                  "fieldName": "GWH",
+                  "displayName": "GWh",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              },
+              "frame": {
+                "title": "Factor de carga vs margen por kWh (tamano = GWh)",
+                "showTitle": true
+              },
+              "data": {
+                "queryName": "main"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 4,
+            "width": 6,
+            "height": 10
+          }
+        },
+        {
+          "widget": {
+            "name": "t_energia",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "energia_cliente",
+                  "fields": [
+                    {
+                      "name": "NISE",
+                      "expression": "`NISE`"
+                    },
+                    {
+                      "name": "CLIENTE",
+                      "expression": "`CLIENTE`"
+                    },
+                    {
+                      "name": "ACTIVIDAD",
+                      "expression": "`ACTIVIDAD`"
+                    },
+                    {
+                      "name": "PLAN",
+                      "expression": "`PLAN`"
+                    },
+                    {
+                      "name": "RANKING",
+                      "expression": "`RANKING`"
+                    },
+                    {
+                      "name": "CONFIABLE",
+                      "expression": "`CONFIABLE`"
+                    },
+                    {
+                      "name": "COMPLETITUD_PCT",
+                      "expression": "`COMPLETITUD_PCT`"
+                    },
+                    {
+                      "name": "GWH",
+                      "expression": "`GWH`"
+                    },
+                    {
+                      "name": "PCT_PUNTA",
+                      "expression": "`PCT_PUNTA`"
+                    },
+                    {
+                      "name": "PCT_VALLE",
+                      "expression": "`PCT_VALLE`"
+                    },
+                    {
+                      "name": "PCT_NOCHE",
+                      "expression": "`PCT_NOCHE`"
+                    },
+                    {
+                      "name": "FACTOR_CARGA",
+                      "expression": "`FACTOR_CARGA`"
+                    },
+                    {
+                      "name": "MARGEN_ENERGIA_M_CRC",
+                      "expression": "`MARGEN_ENERGIA_M_CRC`"
+                    },
+                    {
+                      "name": "MARGEN_POTENCIA_M_CRC",
+                      "expression": "`MARGEN_POTENCIA_M_CRC`"
+                    },
+                    {
+                      "name": "MARGEN_NETO_M_CRC",
+                      "expression": "`MARGEN_NETO_M_CRC`"
+                    },
+                    {
+                      "name": "MARGEN_CRC_KWH",
+                      "expression": "`MARGEN_CRC_KWH`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "value": "Clientes ordenados por margen de energia (ordenar por columna)",
+                  "fields": []
+                }
+              },
+              "version": 2,
+              "rowsPerPage": 25,
+              "freezeUpToColumnNumber": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "NISE",
+                    "displayName": "NISE"
+                  },
+                  {
+                    "fieldName": "CLIENTE",
+                    "useForSearch": true,
+                    "displayName": "Cliente"
+                  },
+                  {
+                    "fieldName": "ACTIVIDAD",
+                    "displayName": "Actividad"
+                  },
+                  {
+                    "fieldName": "PLAN",
+                    "displayName": "Plan"
+                  },
+                  {
+                    "fieldName": "RANKING",
+                    "displayName": "Ranking general"
+                  },
+                  {
+                    "fieldName": "CONFIABLE",
+                    "displayName": "Datos confiables"
+                  },
+                  {
+                    "fieldName": "COMPLETITUD_PCT",
+                    "displayName": "Completitud %"
+                  },
+                  {
+                    "fieldName": "GWH",
+                    "displayName": "GWh periodo"
+                  },
+                  {
+                    "fieldName": "PCT_PUNTA",
+                    "format": {
+                      "type": "number-percent",
+                      "decimalPlaces": {
+                        "type": "max",
+                        "places": 1
+                      }
+                    },
+                    "displayName": "% punta"
+                  },
+                  {
+                    "fieldName": "PCT_VALLE",
+                    "format": {
+                      "type": "number-percent",
+                      "decimalPlaces": {
+                        "type": "max",
+                        "places": 1
+                      }
+                    },
+                    "displayName": "% valle"
+                  },
+                  {
+                    "fieldName": "PCT_NOCHE",
+                    "format": {
+                      "type": "number-percent",
+                      "decimalPlaces": {
+                        "type": "max",
+                        "places": 1
+                      }
+                    },
+                    "displayName": "% noche"
+                  },
+                  {
+                    "fieldName": "FACTOR_CARGA",
+                    "displayName": "Factor de carga"
+                  },
+                  {
+                    "fieldName": "MARGEN_ENERGIA_M_CRC",
+                    "displayName": "Margen energia (M CRC)"
+                  },
+                  {
+                    "fieldName": "MARGEN_POTENCIA_M_CRC",
+                    "displayName": "Margen potencia (M CRC)"
+                  },
+                  {
+                    "fieldName": "MARGEN_NETO_M_CRC",
+                    "displayName": "Margen neto (M CRC)"
+                  },
+                  {
+                    "fieldName": "MARGEN_CRC_KWH",
+                    "displayName": "Margen CRC/kWh"
+                  }
+                ]
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 14,
+            "width": 12,
+            "height": 10
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
+    },
+    {
+      "name": "supuestos",
+      "displayName": "Supuestos y calidad",
+      "layout": [
+        {
+          "widget": {
+            "name": "txt_supuestos",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Supuestos\n",
+                "* Venta: tarifas maximas de la banda T-MT / T-MTb (consolidado_tarifas_28102026.pdf, incluyen CVG), sin calibrar; validadas contra la facturacion oficial de junio 2026 (mediana por cliente = 1.000).\n",
+                "* Compra: segun las facturas mensuales del ICE a CNFL (tarifa T-CB, ene-oct 2026; tabla compra_ice_factura). Precio de energia y de demanda = monto / cantidad de cada mes y franja; el CVG ya viene incluido en esos precios.\n",
+                "* Transmision: cargo variable + cargo fijo mensual (1.209 M CRC), ambos repartidos por kWh facturado por el ICE en el mes; el costo variable y el fijo asignado se guardan por separado.\n",
+                "* Potencia de compra = kW del cliente en el instante del pico que factura el ICE por mes y franja (la hora de la factura marca el fin del intervalo de 15 min, igual que AMI); si falta la lectura se usa su promedio en ese bloque en dias laborales. El pico PME (suma de subestaciones) solo se muestra como comparacion.\n",
+                "* Medicion neta: el kWh inyectado evita compra (energia + transmision variable; el cargo fijo no se evita) y se pierde su venta al retirarse (tarifa media - tarifa de acceso T-A).\n",
+                "* No incluye distribucion, perdidas, cobranza ni cargos de traslado (impuestos, alumbrado publico)."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "t_calidad",
+            "queries": [
+              {
+                "name": "main",
+                "query": {
+                  "datasetName": "calidad",
+                  "fields": [
+                    {
+                      "name": "CHECK",
+                      "expression": "`CHECK`"
+                    },
+                    {
+                      "name": "VALOR",
+                      "expression": "`VALOR`"
+                    },
+                    {
+                      "name": "FALLA",
+                      "expression": "`FALLA`"
+                    },
+                    {
+                      "name": "DETALLE",
+                      "expression": "`DETALLE`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "CHECK",
+                    "displayName": "Validacion"
+                  },
+                  {
+                    "fieldName": "VALOR",
+                    "displayName": "Valor"
+                  },
+                  {
+                    "fieldName": "FALLA",
+                    "displayName": "Falla (0 = OK)"
+                  },
+                  {
+                    "fieldName": "DETALLE",
+                    "displayName": "Detalle"
+                  }
+                ]
+              },
+              "frame": {
+                "title": "Validaciones del estudio",
+                "showTitle": true
+              },
+              "data": {
+                "queryName": "main"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 4,
+            "width": 6,
+            "height": 9
+          }
+        },
+        {
+          "widget": {
+            "name": "t_picos",
+            "queries": [
+              {
+                "name": "main",
+                "query": {
+                  "datasetName": "picos",
+                  "fields": [
+                    {
+                      "name": "PERIODO_MES",
+                      "expression": "`PERIODO_MES`"
+                    },
+                    {
+                      "name": "FRANJA",
+                      "expression": "`FRANJA`"
+                    },
+                    {
+                      "name": "INSTANTE_PICO",
+                      "expression": "`INSTANTE_PICO`"
+                    },
+                    {
+                      "name": "BLOQUE_PICO",
+                      "expression": "`BLOQUE_PICO`"
+                    },
+                    {
+                      "name": "MW_FACTURA_ICE",
+                      "expression": "`MW_FACTURA_ICE`"
+                    },
+                    {
+                      "name": "FUENTE_PICO",
+                      "expression": "`FUENTE_PICO`"
+                    },
+                    {
+                      "name": "INSTANTE_PICO_PME",
+                      "expression": "`INSTANTE_PICO_PME`"
+                    },
+                    {
+                      "name": "MW_PME",
+                      "expression": "`MW_PME`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "PERIODO_MES",
+                    "displayName": "Mes"
+                  },
+                  {
+                    "fieldName": "FRANJA",
+                    "displayName": "Franja"
+                  },
+                  {
+                    "fieldName": "INSTANTE_PICO",
+                    "displayName": "Pico facturado ICE (fin de intervalo)"
+                  },
+                  {
+                    "fieldName": "BLOQUE_PICO",
+                    "displayName": "Bloque"
+                  },
+                  {
+                    "fieldName": "MW_FACTURA_ICE",
+                    "displayName": "MW facturado ICE"
+                  },
+                  {
+                    "fieldName": "FUENTE_PICO",
+                    "displayName": "Fuente"
+                  },
+                  {
+                    "fieldName": "INSTANTE_PICO_PME",
+                    "displayName": "Pico PME (comparacion)"
+                  },
+                  {
+                    "fieldName": "MW_PME",
+                    "displayName": "MW PME (comparacion)"
+                  }
+                ]
+              },
+              "frame": {
+                "title": "Pico facturado por el ICE usado para la potencia de compra",
+                "showTitle": true
+              },
+              "data": {
+                "queryName": "main"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 4,
+            "width": 6,
+            "height": 9
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
+    }
+  ]
+}

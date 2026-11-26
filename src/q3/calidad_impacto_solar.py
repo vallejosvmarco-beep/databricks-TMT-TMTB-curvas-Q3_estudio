@@ -61,12 +61,12 @@ def impacto_solar_q3_calidad():
     # 2. Autoconsumo > demanda (no debe ocurrir)
     autoconsumo_excesivo = (
         intervalo.filter(
-            F.col("AUTOCONSUMO_SOLAR_KWH") > F.col("DEMANDA_Q3_KWH") + 0.001
+            F.col("AUTOCONSUMO_SOLAR_KWH") > F.col("DEMANDA_PROM_KWH") + 0.001
         )
         .agg(F.count("*").alias("REGISTROS_AFECTADOS"))
         .select(
             F.lit("AUTOCONSUMO_MAYOR_DEMANDA").alias("VALIDACION"),
-            F.lit("AUTOCONSUMO_SOLAR no debe superar DEMANDA_Q3").alias(
+            F.lit("AUTOCONSUMO_SOLAR no debe superar DEMANDA_PROM (dia tipico promedio)").alias(
                 "DESCRIPCION"
             ),
             F.col("REGISTROS_AFECTADOS"),
@@ -131,31 +131,27 @@ def impacto_solar_q3_calidad():
         )
     )
 
-    # 7. Generacion nocturna anomala (bloques 0-21 y 73-95 con generacion > 0)
+    # 7. Generacion nocturna anomala: HORA < 5 o HORA >= 19 (bloques 0-19 y 76-95),
+    #    misma definicion de noche que perfil_solar_q3 (amanecer 5:00 y atardecer 18:xx son validos)
     gen_nocturna = (
         intervalo.filter(
             (
-                (F.col("BLOQUE_15M") < 22) | (F.col("BLOQUE_15M") > 72)
+                (F.col("BLOQUE_15M") < 20) | (F.col("BLOQUE_15M") >= 76)
             )
             & (F.col("GENERACION_SOLAR_SIMULADA_KWH") > 0.01)
         )
-        .groupBy("NISE")
+        # Una sola fila (siempre presente): intervalos con generacion nocturna
         .agg(
-            F.sum("GENERACION_SOLAR_SIMULADA_KWH").alias("GEN_NOCTURNA_KWH"),
-            F.count("*").alias("INTERVALOS_NOCTURNOS_GEN"),
+            F.count("*").alias("REGISTROS_AFECTADOS"),
+            F.countDistinct("NISE").alias("NISE_AFECTADOS"),
         )
         .select(
             F.lit("GENERACION_NOCTURNA_ANOMALA").alias("VALIDACION"),
             F.concat(
-                F.lit("NISE "),
-                F.col("NISE"),
-                F.lit(" tiene generacion nocturna: "),
-                F.round("GEN_NOCTURNA_KWH", 4).cast("string"),
-                F.lit(" kWh en "),
-                F.col("INTERVALOS_NOCTURNOS_GEN").cast("string"),
-                F.lit(" intervalos"),
+                F.lit("Intervalos nocturnos (antes de 5:00 o desde 19:00) con generacion > 0.01 kWh; NISE afectados: "),
+                F.col("NISE_AFECTADOS").cast("string"),
             ).alias("DESCRIPCION"),
-            F.col("INTERVALOS_NOCTURNOS_GEN").alias("REGISTROS_AFECTADOS"),
+            F.col("REGISTROS_AFECTADOS"),
             F.lit("impacto_solar_q3_intervalo").alias("TABLA"),
         )
     )
@@ -244,6 +240,7 @@ def impacto_solar_q3_calidad():
         .unionByName(remanente_negativo)
         .unionByName(excedente_negativo)
         .unionByName(no_vendida_excesiva)
+        .unionByName(gen_nocturna)
         .unionByName(potencia_cero)
         .unionByName(sin_96)
         .unionByName(consistencia)

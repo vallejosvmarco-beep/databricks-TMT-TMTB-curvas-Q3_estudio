@@ -134,7 +134,7 @@
     },
     {
       "name": "nise_resumen",
-      "displayName": "Resumen por NISE (BATERIA_10)",
+      "displayName": "Resumen por NISE (BESS_50PCT_2H)",
       "queryLines": [
         "SELECT\n",
         "  NISE,\n",
@@ -153,7 +153,7 @@
         "FROM\n",
         "  impacto_bateria_q3_cliente_resumen\n",
         "WHERE\n",
-        "  ESCENARIO_BATERIA = 'BATERIA_10'\n",
+        "  ESCENARIO_BATERIA = 'BESS_50PCT_2H'\n",
         "ORDER BY\n",
         "  ENERGIA_DESCARGADA_KWH DESC"
       ]
@@ -188,7 +188,7 @@
         "FROM\n",
         "  impacto_bateria_q3_intervalo\n",
         "WHERE\n",
-        "  ESCENARIO_BATERIA = 'BATERIA_10'\n",
+        "  ESCENARIO_BATERIA = 'BESS_50PCT_2H'\n",
         "GROUP BY\n",
         "  BLOQUE_15M,\n",
         "  ESTADO_BATERIA\n",
@@ -246,7 +246,7 @@
         "FROM\n",
         "  impacto_bateria_q3_cliente_resumen\n",
         "WHERE\n",
-        "  ESCENARIO_BATERIA = 'BATERIA_10'\n",
+        "  ESCENARIO_BATERIA = 'BESS_50PCT_2H'\n",
         "ORDER BY\n",
         "  ENERGIA_DESCARGADA_KWH DESC\n",
         "LIMIT 20"
@@ -452,7 +452,7 @@
               "dataType": "STRING",
               "values": [
                 {
-                  "value": "BATERIA_10"
+                  "value": "BESS_50PCT_2H"
                 }
               ]
             }
@@ -481,7 +481,7 @@
         "    NISE = :nise_seleccionado\n",
         "    AND ESCENARIO_BATERIA\n",
         "      = CASE\n",
-        "        WHEN :escenario_seleccionado = 'SOLO_SOLAR' THEN 'BATERIA_2_5'\n",
+        "        WHEN :escenario_seleccionado = 'SOLO_SOLAR' THEN 'BESS_25PCT_2H'\n",
         "        ELSE :escenario_seleccionado\n",
         "      END\n",
         "  GROUP BY\n",
@@ -583,7 +583,7 @@
               "dataType": "STRING",
               "values": [
                 {
-                  "value": "BATERIA_10"
+                  "value": "BESS_50PCT_2H"
                 }
               ]
             }
@@ -611,7 +611,7 @@
         "  WHERE\n",
         "    ESCENARIO_BATERIA\n",
         "      = CASE\n",
-        "        WHEN :escenario_seleccionado = 'SOLO_SOLAR' THEN 'BATERIA_2_5'\n",
+        "        WHEN :escenario_seleccionado = 'SOLO_SOLAR' THEN 'BESS_25PCT_2H'\n",
         "        ELSE :escenario_seleccionado\n",
         "      END\n",
         "  GROUP BY\n",
@@ -698,7 +698,7 @@
               "dataType": "STRING",
               "values": [
                 {
-                  "value": "BATERIA_10"
+                  "value": "BESS_50PCT_2H"
                 }
               ]
             }
@@ -1828,7 +1828,7 @@
             "spec": {
               "frame": {
                 "showTitle": true,
-                "title": "Resumen Detallado por NISE (BATERIA_10)"
+                "title": "Resumen Detallado por NISE (BESS_50PCT_2H)"
               },
               "version": 2,
               "widgetType": "table",

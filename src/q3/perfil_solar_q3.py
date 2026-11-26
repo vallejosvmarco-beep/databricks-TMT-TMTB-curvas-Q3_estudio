@@ -6,7 +6,8 @@ from pyspark.sql.window import Window
 Perfil solar de referencia para Costa Rica.
 
 Construye un perfil fotovoltaico real a partir de clientes que ya poseen
-generacion solar medida (OPERACION = 'Generacion_SGDA_Activo_kWh').
+generacion solar medida (OPERACION = 'Generacion_SGD_Activa_kWh';
+antes 'Generacion_SGDA_Activo_kWh', renombrada en plata_950_carga 2026).
 
 El perfil se normaliza a un factor 0-1 para poder escalarlo por cliente
 segun su potencia pico dimensionada.
@@ -22,6 +23,10 @@ OUTPUT_CATALOG = spark.conf.get("project.output_catalog")
 OUTPUT_SCHEMA = spark.conf.get("project.output_schema")
 
 SOURCE_TABLE = f"{OUTPUT_CATALOG}.{OUTPUT_SCHEMA}.curvas_q3_mensuales"
+OPERACION_GENERACION = "Generacion_SGD_Activa_kWh"
+# Se excluyen generadores no solares: si mas de este porcentaje de su energia
+# promedio cae de noche (HORA < 5 o HORA >= 19), no se usan en el perfil FV.
+UMBRAL_GENERACION_NOCTURNA = 0.05
 
 
 @dp.materialized_view(
@@ -35,17 +40,34 @@ SOURCE_TABLE = f"{OUTPUT_CATALOG}.{OUTPUT_SCHEMA}.curvas_q3_mensuales"
 def perfil_solar_q3_referencia():
     """
     Construye el perfil solar de referencia desde clientes con generacion
-    solar medida (Generacion_SGDA_Activo_kWh, METRICA=ENERGIA).
+    solar medida (Generacion_SGD_Activa_kWh, METRICA=ENERGIA).
     """
     df = spark.read.table(SOURCE_TABLE)
 
+    generacion = df.filter(
+        (F.col("OPERACION") == OPERACION_GENERACION)
+        & (F.col("METRICA") == "ENERGIA")
+        & F.col("Q3").isNotNull()
+    )
+
+    # Generadores con perfil solar (energia nocturna <= umbral)
+    es_noche = (F.col("HORA") < 5) | (F.col("HORA") >= 19)
+    generadores_fv = (
+        generacion.groupBy("NISE")
+        .agg(
+            F.sum("PROMEDIO").alias("TOTAL"),
+            F.sum(F.when(es_noche, F.col("PROMEDIO")).otherwise(F.lit(0.0))).alias("NOCHE"),
+        )
+        .filter(
+            (F.col("TOTAL") > 0)
+            & (F.col("NOCHE") / F.col("TOTAL") <= F.lit(UMBRAL_GENERACION_NOCTURNA))
+        )
+        .select("NISE")
+    )
+
     # Filtrar solo generacion solar activa, metrica de energia (kWh por 15 min)
     solar = (
-        df.filter(
-            (F.col("OPERACION") == "Generacion_SGDA_Activo_kWh")
-            & (F.col("METRICA") == "ENERGIA")
-            & F.col("Q3").isNotNull()
-        )
+        generacion.join(generadores_fv, "NISE", "inner")
         .select(
             "ANIO",
             "MES",
@@ -54,6 +76,7 @@ def perfil_solar_q3_referencia():
             "HORA",
             "MINUTO",
             F.col("Q3").alias("Q3_SOLAR_REFERENCIA"),
+            F.col("PROMEDIO").alias("PROM_SOLAR_REFERENCIA"),
         )
     )
 
@@ -69,6 +92,7 @@ def perfil_solar_q3_referencia():
         )
         .agg(
             F.avg("Q3_SOLAR_REFERENCIA").alias("Q3_SOLAR_REFERENCIA"),
+            F.avg("PROM_SOLAR_REFERENCIA").alias("PROM_SOLAR_REFERENCIA"),
             F.count("*").alias("MUESTRAS_SOLARES"),
         )
     )
@@ -80,6 +104,13 @@ def perfil_solar_q3_referencia():
     perfil = perfil.withColumn(
         "FACTOR_SOLAR_NORMALIZADO",
         F.when(F.lit(max_q3) > 0, F.col("Q3_SOLAR_REFERENCIA") / F.lit(max_q3))
+        .otherwise(F.lit(0.0)),
+    )
+    # Factor de ENERGIA: generacion promedio (dia tipico) relativa al mismo pico Q3.
+    # Potencia (dimensionada con Q3) x FACTOR_SOLAR_ENERGIA = kWh promedio por intervalo.
+    perfil = perfil.withColumn(
+        "FACTOR_SOLAR_ENERGIA",
+        F.when(F.lit(max_q3) > 0, F.col("PROM_SOLAR_REFERENCIA") / F.lit(max_q3))
         .otherwise(F.lit(0.0)),
     )
 
@@ -143,6 +174,8 @@ def perfil_solar_q3_referencia():
             "MINUTO",
             "Q3_SOLAR_REFERENCIA",
             "FACTOR_SOLAR_NORMALIZADO",
+            "PROM_SOLAR_REFERENCIA",
+            "FACTOR_SOLAR_ENERGIA",
             "MUESTRAS_SOLARES",
             "BLOQUE_PICO_SOLAR_CR",
             "HORA_PICO_SOLAR_CR",

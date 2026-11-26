@@ -1,0 +1,8 @@
+resources:
+  dashboards:
+    margen_dashboard:
+      display_name: "TMT_TMTB - Margen de comercializacion por cliente"
+      file_path: ../dashboards/margen_comercializacion.lvdash.json
+      warehouse_id: ${var.warehouse_id}
+      parent_path: "/Shared/curvas-Q3"
+      embed_credentials: false

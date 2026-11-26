@@ -1,0 +1,2108 @@
+{
+  "datasets": [
+    {
+      "name": "clientes_mv",
+      "displayName": "Clientes - escenarios (metricas)",
+      "config": {
+        "dimensions": [
+          {
+            "expr": "PLAN",
+            "name": "PLAN"
+          },
+          {
+            "expr": "NISE",
+            "name": "NISE"
+          },
+          {
+            "expr": "COALESCE(BESS_ESCENARIO_OPTIMO, 'SIN_BESS')",
+            "name": "BESS_ESCENARIO_OPTIMO"
+          },
+          {
+            "expr": "CASE WHEN E2B_VIABLE THEN 'Viable' ELSE 'No viable' END",
+            "name": "VIABILIDAD_E2B"
+          }
+        ],
+        "measures": [
+          {
+            "expr": "COUNT(NISE)",
+            "name": "Clientes"
+          },
+          {
+            "expr": "SUM(CASE WHEN E2B_VIABLE THEN 1 ELSE 0 END)",
+            "name": "Clientes viables E2B"
+          },
+          {
+            "expr": "SUM(E1_MARGEN_ANUAL_CRC) / 1e6",
+            "name": "E1 margen anual (M CRC)"
+          },
+          {
+            "expr": "SUM(E1_VAN_CRC) / 1e6",
+            "name": "E1 VAN (M CRC)"
+          },
+          {
+            "expr": "SUM(E2_VAN_CRC) / 1e6",
+            "name": "E2 solar VAN (M CRC)"
+          },
+          {
+            "expr": "SUM(E2B_VAN_CRC) / 1e6",
+            "name": "E2 solar + BESS VAN (M CRC)"
+          },
+          {
+            "expr": "SUM(E2B_CAPEX_CRC) / 1e6",
+            "name": "E2 solar + BESS CAPEX (M CRC)"
+          },
+          {
+            "expr": "SUM(VALOR_ACTUAR_PRIMERO_CRC) / 1e6",
+            "name": "Valor de actuar primero (M CRC)"
+          },
+          {
+            "expr": "SUM(INGRESO_PERDIDO_ANUAL_CRC) / 1e6",
+            "name": "Ingreso perdido E1 (M CRC)"
+          },
+          {
+            "expr": "SUM(COMPRA_EVITADA_E1_ANUAL_CRC) / 1e6",
+            "name": "Compra evitada E1 (M CRC)"
+          },
+          {
+            "expr": "SUM(COMPRA_EVITADA_E2_ANUAL_CRC) / 1e6",
+            "name": "Compra evitada E2 (M CRC)"
+          }
+        ],
+        "source": "datosami.datos.financiero_cliente_escenarios",
+        "version": "1.1"
+      }
+    },
+    {
+      "name": "clientes_detalle",
+      "displayName": "Clientes - detalle priorizado",
+      "queryLines": [
+        "WITH fact AS (\n",
+        "  SELECT\n",
+        "    CAST(nis AS STRING) AS NISE,\n",
+        "    MAX(nombre_factura) AS nombre_factura\n",
+        "  FROM\n",
+        "    (\n",
+        "      SELECT\n",
+        "        nis,\n",
+        "        nombre_factura\n",
+        "      FROM\n",
+        "        datosami.datos.tmt\n",
+        "      UNION ALL\n",
+        "      SELECT\n",
+        "        nis,\n",
+        "        nombre_factura\n",
+        "      FROM\n",
+        "        datosami.datos.tmtb\n",
+        "    )\n",
+        "  GROUP BY\n",
+        "    1\n",
+        ")\n",
+        "SELECT\n",
+        "  e.PRIORIDAD,\n",
+        "  e.NISE,\n",
+        "  COALESCE(NULLIF(TRIM(s.NOMBRE_ABONADO), ''), f.nombre_factura, 'Sin nombre') AS CLIENTE,\n",
+        "  CONCAT(\n",
+        "    LEFT(COALESCE(NULLIF(TRIM(s.NOMBRE_ABONADO), ''), f.nombre_factura, 'Sin nombre'), 30),\n",
+        "    ' (',\n",
+        "    e.NISE,\n",
+        "    ')'\n",
+        "  ) AS CLIENTE_NISE,\n",
+        "  s.DESC_TIPO_CIU AS ACTIVIDAD,\n",
+        "  e.PLAN,\n",
+        "  ROUND(e.KWP, 1) AS KWP,\n",
+        "  ROUND(e.E1_MARGEN_ANUAL_CRC / 1e6, 2) AS E1_MARGEN_ANUAL_M,\n",
+        "  ROUND(e.E1_VAN_CRC / 1e6, 2) AS E1_VAN_M,\n",
+        "  ROUND(e.CAPEX_SOLAR_CRC / 1e6, 2) AS CAPEX_SOLAR_M,\n",
+        "  ROUND(e.E2_VAN_CRC / 1e6, 2) AS E2_VAN_M,\n",
+        "  ROUND(e.E2_RBC, 3) AS E2_RBC,\n",
+        "  COALESCE(e.BESS_ESCENARIO_OPTIMO, 'SIN_BESS') AS BESS_OPTIMO,\n",
+        "  ROUND(e.BESS_VAN_CRC / 1e6, 2) AS BESS_VAN_M,\n",
+        "  ROUND(e.E2B_CAPEX_CRC / 1e6, 2) AS E2B_CAPEX_M,\n",
+        "  ROUND(e.E2B_VAN_CRC / 1e6, 2) AS E2B_VAN_M,\n",
+        "  ROUND(e.E2B_TIR_PCT, 2) AS E2B_TIR_PCT,\n",
+        "  ROUND(e.E2B_RBC, 3) AS E2B_RBC,\n",
+        "  e.E2B_VIABLE,\n",
+        "  ROUND(e.VALOR_ACTUAR_PRIMERO_CRC / 1e6, 2) AS VALOR_ACTUAR_PRIMERO_M\n",
+        "FROM\n",
+        "  datosami.datos.financiero_cliente_escenarios e\n",
+        "    LEFT JOIN datosami.datos.clientes_base_plata_clientes s\n",
+        "      ON s.NISE = e.NISE\n",
+        "    LEFT JOIN fact f\n",
+        "      ON f.NISE = e.NISE\n",
+        "ORDER BY\n",
+        "  e.PRIORIDAD"
+      ]
+    },
+    {
+      "name": "matriz",
+      "displayName": "Matriz de adopcion",
+      "queryLines": [
+        "SELECT ESTRATEGIA, PENETRACION, CONCAT(CAST(CAST(PENETRACION * 100 AS INT) AS STRING), '% adopta') AS PENETRACION_TXT, CAPTURA_CNFL,\n",
+        "CLIENTES_ADOPTAN, CLIENTES_CNFL, CLIENTES_AUTOINSTALAN,\n",
+        "VAN_E1_CRC / 1e6 AS VAN_E1_M, VAN_E2_CRC / 1e6 AS VAN_E2_M, VAN_TOTAL_CRC / 1e6 AS VAN_TOTAL_M,\n",
+        "GANANCIA_VS_NO_ACTUAR_CRC / 1e6 AS GANANCIA_VS_NO_ACTUAR_M, CAPEX_E2_CRC / 1e6 AS CAPEX_E2_M, TIR_E2_PCT, RBC_E2\n",
+        "FROM datosami.datos.financiero_matriz_adopcion"
+      ]
+    },
+    {
+      "name": "bess",
+      "displayName": "BESS por escenario",
+      "queryLines": [
+        "SELECT ESCENARIO_BATERIA, CLIENTES, CLIENTES_VAN_POSITIVO, ROUND(CAPACIDAD_KWH / 1e3, 1) AS CAPACIDAD_MWH,\n",
+        "ROUND(AHORRO_ENERGIA_ANUAL_CRC / 1e6, 1) AS AHORRO_ENERGIA_M, ROUND(AHORRO_POTENCIA_ANUAL_CRC / 1e6, 1) AS AHORRO_POTENCIA_M,\n",
+        "ROUND(CAPEX_CRC / 1e6, 1) AS CAPEX_M, ROUND(VAN_CRC / 1e6, 1) AS VAN_M, ROUND(TIR_PCT, 2) AS TIR_PCT, ROUND(RBC, 3) AS RBC,\n",
+        "ROUND(VAN_SOLO_POSITIVOS_CRC / 1e6, 1) AS VAN_SOLO_POSITIVOS_M\n",
+        "FROM datosami.datos.financiero_bess_marginal"
+      ]
+    },
+    {
+      "name": "supuestos",
+      "displayName": "Parametros y tarifas",
+      "queryLines": [
+        "SELECT 'Parametro' AS TIPO, PARAMETRO AS NOMBRE, CAST(VALOR AS STRING) AS VALOR, UNIDAD, FUENTE FROM datosami.datos.parametros_estudio_financiero\n",
+        "UNION ALL\n",
+        "SELECT 'Tarifa', CONCAT(PLAN, ' ', FRANJA), CONCAT('venta ', CAST(ROUND(TARIFA_VENTA_ENERGIA_CAL, 2) AS STRING), ' / compra+peaje ', CAST(ROUND(TARIFA_COMPRA_ENERGIA + PEAJE_TRANSMISION, 2) AS STRING), ' CRC/kWh; potencia venta ', CAST(TARIFA_VENTA_POTENCIA AS STRING), ' / compra ', CAST(TARIFA_COMPRA_POTENCIA AS STRING), ' CRC/kW'), 'CRC', 'consolidado_tarifas_28102026.pdf; config.py con CVG'\n",
+        "FROM datosami.datos.tarifas_franja_estudio"
+      ]
+    },
+    {
+      "name": "calidad",
+      "displayName": "Calidad del modelo",
+      "queryLines": [
+        "SELECT VALIDACION, DESCRIPCION, REGISTROS_AFECTADOS, FECHA_VALIDACION FROM datosami.datos.financiero_calidad"
+      ]
+    },
+    {
+      "name": "curvas_cliente",
+      "displayName": "Curvas solar + BESS por cliente",
+      "queryLines": [
+        "WITH fact AS (\n",
+        "  SELECT\n",
+        "    CAST(nis AS STRING) AS NISE,\n",
+        "    MAX(nombre_factura) AS nombre_factura\n",
+        "  FROM\n",
+        "    (\n",
+        "      SELECT\n",
+        "        nis,\n",
+        "        nombre_factura\n",
+        "      FROM\n",
+        "        datosami.datos.tmt\n",
+        "      UNION ALL\n",
+        "      SELECT\n",
+        "        nis,\n",
+        "        nombre_factura\n",
+        "      FROM\n",
+        "        datosami.datos.tmtb\n",
+        "    )\n",
+        "  GROUP BY\n",
+        "    1\n",
+        "),\n",
+        "esc AS (\n",
+        "  SELECT\n",
+        "    NISE,\n",
+        "    COALESCE(BESS_ESCENARIO_OPTIMO, 'SIN_BESS') AS BESS_OPTIMO, PRIORIDAD, ROUND(E2B_VAN_CRC / 1e6, 2) AS E2B_VAN_M\n",
+        "  FROM\n",
+        "    datosami.datos.financiero_cliente_escenarios\n",
+        "),\n",
+        "b AS (\n",
+        "  SELECT\n",
+        "    i.*,\n",
+        "    e.BESS_OPTIMO, e.PRIORIDAD, e.E2B_VAN_M,\n",
+        "    CONCAT(\n",
+        "      LEFT(COALESCE(NULLIF(TRIM(s.NOMBRE_ABONADO), ''), f.nombre_factura, 'Sin nombre'), 30),\n",
+        "      ' (',\n",
+        "      i.NISE,\n",
+        "      ')'\n",
+        "    ) AS CLIENTE_NISE\n",
+        "  FROM\n",
+        "    datosami.datos.bateria_despacho_optimo_intervalo i\n",
+        "      JOIN esc e\n",
+        "        ON e.NISE = i.NISE\n",
+        "      LEFT JOIN datosami.datos.clientes_base_plata_clientes s\n",
+        "        ON s.NISE = i.NISE\n",
+        "      LEFT JOIN fact f\n",
+        "        ON f.NISE = i.NISE\n",
+        "  WHERE i.ESTADO_LP = 'OPTIMO'\n",
+        ")\n",
+        "SELECT\n",
+        "  b.NISE,\n",
+        "  b.PLAN,\n",
+        "  b.CLIENTE_NISE,\n",
+        "  'ADOPCION_100' AS ESCENARIO_SOLAR,\n",
+        "  b.ESCENARIO_BATERIA,\n",
+        "  b.BESS_OPTIMO, b.PRIORIDAD, b.E2B_VAN_M,\n",
+        "  CASE\n",
+        "    WHEN b.ESCENARIO_BATERIA = b.BESS_OPTIMO THEN 'Si'\n",
+        "    ELSE 'No'\n",
+        "  END AS ES_BESS_OPTIMO,\n",
+        "  b.TIPO_DIA,\n",
+        "  b.PERIODO_MES,\n",
+        "  DATE_FORMAT(b.PERIODO_MES, 'yyyy-MM') AS MES_TXT,\n",
+        "  b.HORA + b.MINUTO / 60.0 AS HORA_DEC,\n",
+        "  b.BLOQUE_15M,\n",
+        "  u.SERIE,\n",
+        "  u.KW\n",
+        "FROM\n",
+        "  b\n",
+        "  LATERAL VIEW\n",
+        "    STACK(\n",
+        "      5,\n",
+        "      '1 Demanda base',\n",
+        "      b.DEMANDA_KWH * 4,\n",
+        "      '2 Generacion solar',\n",
+        "      b.GENERACION_SOLAR_KWH * 4,\n",
+        "      '3 Neta con solar (red)',\n",
+        "      b.NETO_SIN_BESS_KWH * 4,\n",
+        "      '4 Neta con solar + BESS (red)',\n",
+        "      b.NETO_CON_BESS_KWH * 4,\n",
+        "      '5 BESS (+descarga / -carga)',\n",
+        "      (b.DESCARGA_KWH - b.CARGA_KWH) * 4\n",
+        "    ) u\n",
+        "    AS SERIE, KW"
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "name": "resumen",
+      "displayName": "Resumen",
+      "layout": [
+        {
+          "widget": {
+            "name": "txt_intro",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Escenarios financieros solar + BESS TMT/TMTB\n",
+                "**E1**: el cliente instala solar (impacto en el margen de CNFL). **E2**: CNFL instala solar (y BESS con despacho optimo) en el cliente. VAN a 10 anios (tasa 8.97%), montos en millones de CRC, anualizados de 7 meses (abr-oct 2026). Compra con CVG; venta con tarifas maximas vigentes."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi_e1_van",
+            "queries": [
+              {
+                "name": "main",
+                "query": {
+                  "datasetName": "clientes_mv",
+                  "fields": [
+                    {
+                      "name": "v",
+                      "expression": "MEASURE(`E1 VAN (M CRC)`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "data": {
+                "queryName": "main"
+              },
+              "encodings": {
+                "value": {
+                  "displayName": "E1 VAN",
+                  "fieldName": "v",
+                  "format": {
+                    "abbreviation": "none",
+                    "decimalPlaces": {
+                      "places": 0,
+                      "type": "max"
+                    },
+                    "type": "number-plain"
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "E1 VAN (M CRC)"
+              },
+              "version": 2,
+              "widgetType": "counter"
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi_e2_van",
+            "queries": [
+              {
+                "name": "main",
+                "query": {
+                  "datasetName": "clientes_mv",
+                  "fields": [
+                    {
+                      "name": "v",
+                      "expression": "MEASURE(`E2 solar VAN (M CRC)`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "data": {
+                "queryName": "main"
+              },
+              "encodings": {
+                "value": {
+                  "displayName": "E2 solar VAN",
+                  "fieldName": "v",
+                  "format": {
+                    "abbreviation": "none",
+                    "decimalPlaces": {
+                      "places": 0,
+                      "type": "max"
+                    },
+                    "type": "number-plain"
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "E2 solar VAN (M CRC)"
+              },
+              "version": 2,
+              "widgetType": "counter"
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 2,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi_e2b_van",
+            "queries": [
+              {
+                "name": "main",
+                "query": {
+                  "datasetName": "clientes_mv",
+                  "fields": [
+                    {
+                      "name": "v",
+                      "expression": "MEASURE(`E2 solar + BESS VAN (M CRC)`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "data": {
+                "queryName": "main"
+              },
+              "encodings": {
+                "value": {
+                  "displayName": "E2 solar + BESS VAN",
+                  "fieldName": "v",
+                  "format": {
+                    "abbreviation": "none",
+                    "decimalPlaces": {
+                      "places": 0,
+                      "type": "max"
+                    },
+                    "type": "number-plain"
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "E2 solar + BESS VAN (M CRC)"
+              },
+              "version": 2,
+              "widgetType": "counter"
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 2,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi_viables",
+            "queries": [
+              {
+                "name": "main",
+                "query": {
+                  "datasetName": "clientes_mv",
+                  "fields": [
+                    {
+                      "name": "v",
+                      "expression": "MEASURE(`Clientes viables E2B`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "data": {
+                "queryName": "main"
+              },
+              "encodings": {
+                "value": {
+                  "displayName": "Clientes viables",
+                  "fieldName": "v"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Clientes viables E2 (RBC >= 1)"
+              },
+              "version": 2,
+              "widgetType": "counter"
+            }
+          },
+          "position": {
+            "x": 9,
+            "y": 2,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "bar_van_plan",
+            "queries": [
+              {
+                "name": "main",
+                "query": {
+                  "datasetName": "clientes_mv",
+                  "fields": [
+                    {
+                      "name": "PLAN",
+                      "expression": "`PLAN`"
+                    },
+                    {
+                      "name": "e1",
+                      "expression": "MEASURE(`E1 VAN (M CRC)`)"
+                    },
+                    {
+                      "name": "e2",
+                      "expression": "MEASURE(`E2 solar VAN (M CRC)`)"
+                    },
+                    {
+                      "name": "e2b",
+                      "expression": "MEASURE(`E2 solar + BESS VAN (M CRC)`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "data": {
+                "queryName": "main"
+              },
+              "encodings": {
+                "x": {
+                  "displayName": "Plan",
+                  "fieldName": "PLAN",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fields": [
+                    {
+                      "displayName": "E1 cliente instala",
+                      "fieldName": "e1"
+                    },
+                    {
+                      "displayName": "E2 CNFL solar",
+                      "fieldName": "e2"
+                    },
+                    {
+                      "displayName": "E2 CNFL solar + BESS",
+                      "fieldName": "e2b"
+                    }
+                  ],
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "VAN a 10 anios por plan y escenario (M CRC)"
+              },
+              "mark": {
+                "layout": "group"
+              },
+              "version": 3,
+              "widgetType": "bar"
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 5,
+            "width": 6,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "bar_flujos_e1",
+            "queries": [
+              {
+                "name": "main",
+                "query": {
+                  "datasetName": "clientes_mv",
+                  "fields": [
+                    {
+                      "name": "PLAN",
+                      "expression": "`PLAN`"
+                    },
+                    {
+                      "name": "perdido",
+                      "expression": "MEASURE(`Ingreso perdido E1 (M CRC)`)"
+                    },
+                    {
+                      "name": "evitada",
+                      "expression": "MEASURE(`Compra evitada E1 (M CRC)`)"
+                    },
+                    {
+                      "name": "margen",
+                      "expression": "MEASURE(`E1 margen anual (M CRC)`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "data": {
+                "queryName": "main"
+              },
+              "encodings": {
+                "x": {
+                  "displayName": "Plan",
+                  "fieldName": "PLAN",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fields": [
+                    {
+                      "displayName": "Ingreso perdido",
+                      "fieldName": "perdido"
+                    },
+                    {
+                      "displayName": "Compra evitada",
+                      "fieldName": "evitada"
+                    },
+                    {
+                      "displayName": "Efecto neto en margen",
+                      "fieldName": "margen"
+                    }
+                  ],
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "E1 anual: ingreso perdido vs compra evitada (M CRC)"
+              },
+              "mark": {
+                "layout": "group"
+              },
+              "version": 3,
+              "widgetType": "bar"
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 5,
+            "width": 6,
+            "height": 7
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
+    },
+    {
+      "name": "matriz_pagina",
+      "displayName": "Matriz de adopcion",
+      "layout": [
+        {
+          "widget": {
+            "name": "f_estrategia",
+            "queries": [
+              {
+                "name": "dom",
+                "query": {
+                  "datasetName": "matriz",
+                  "fields": [
+                    {
+                      "name": "ESTRATEGIA",
+                      "expression": "`ESTRATEGIA`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "encodings": {
+                "fields": [
+                  {
+                    "displayName": "Estrategia",
+                    "fieldName": "ESTRATEGIA",
+                    "queryName": "dom"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Estrategia"
+              },
+              "selection": {
+                "defaultSelection": {
+                  "values": {
+                    "dataType": "STRING",
+                    "values": [
+                      {
+                        "value": "PRIORIZADA_SOLAR_BESS"
+                      }
+                    ]
+                  }
+                }
+              },
+              "version": 2,
+              "widgetType": "filter-single-select"
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 4,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "txt_matriz",
+            "multilineTextboxSpec": {
+              "lines": [
+                "PENETRACION = fraccion de clientes TMT/TMTB que adopta solar. CAPTURA = fraccion de esos clientes que instala CNFL (E2); el resto se autoinstala (E1). PRIORIZADA: CNFL capta primero a los clientes de mayor VAN."
+              ]
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 0,
+            "width": 8,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "line_van_captura",
+            "queries": [
+              {
+                "name": "main",
+                "query": {
+                  "datasetName": "matriz",
+                  "fields": [
+                    {
+                      "name": "CAPTURA_CNFL",
+                      "expression": "`CAPTURA_CNFL`"
+                    },
+                    {
+                      "name": "PENETRACION_TXT",
+                      "expression": "`PENETRACION_TXT`"
+                    },
+                    {
+                      "name": "van",
+                      "expression": "SUM(`VAN_TOTAL_M`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "data": {
+                "queryName": "main"
+              },
+              "encodings": {
+                "color": {
+                  "displayName": "Penetracion",
+                  "fieldName": "PENETRACION_TXT",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "x": {
+                  "displayName": "Captura CNFL",
+                  "fieldName": "CAPTURA_CNFL",
+                  "format": {
+                    "decimalPlaces": {
+                      "places": 0,
+                      "type": "max"
+                    },
+                    "type": "number-percent"
+                  },
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "y": {
+                  "displayName": "VAN total (M CRC)",
+                  "fieldName": "van",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "VAN total para CNFL segun captura (M CRC)"
+              },
+              "version": 3,
+              "widgetType": "line"
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 7,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "line_capex_captura",
+            "queries": [
+              {
+                "name": "main",
+                "query": {
+                  "datasetName": "matriz",
+                  "fields": [
+                    {
+                      "name": "CAPTURA_CNFL",
+                      "expression": "`CAPTURA_CNFL`"
+                    },
+                    {
+                      "name": "PENETRACION_TXT",
+                      "expression": "`PENETRACION_TXT`"
+                    },
+                    {
+                      "name": "capex",
+                      "expression": "SUM(`CAPEX_E2_M`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "data": {
+                "queryName": "main"
+              },
+              "encodings": {
+                "color": {
+                  "displayName": "Penetracion",
+                  "fieldName": "PENETRACION_TXT",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "x": {
+                  "displayName": "Captura CNFL",
+                  "fieldName": "CAPTURA_CNFL",
+                  "format": {
+                    "decimalPlaces": {
+                      "places": 0,
+                      "type": "max"
+                    },
+                    "type": "number-percent"
+                  },
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "y": {
+                  "displayName": "CAPEX (M CRC)",
+                  "fieldName": "capex",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "CAPEX de CNFL segun captura (M CRC)"
+              },
+              "version": 3,
+              "widgetType": "line"
+            }
+          },
+          "position": {
+            "x": 7,
+            "y": 2,
+            "width": 5,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "tbl_matriz",
+            "queries": [
+              {
+                "name": "main",
+                "query": {
+                  "datasetName": "matriz",
+                  "fields": [
+                    {
+                      "name": "PENETRACION",
+                      "expression": "`PENETRACION`"
+                    },
+                    {
+                      "name": "CAPTURA_CNFL",
+                      "expression": "`CAPTURA_CNFL`"
+                    },
+                    {
+                      "name": "CLIENTES_CNFL",
+                      "expression": "`CLIENTES_CNFL`"
+                    },
+                    {
+                      "name": "CLIENTES_AUTOINSTALAN",
+                      "expression": "`CLIENTES_AUTOINSTALAN`"
+                    },
+                    {
+                      "name": "VAN_E1_M",
+                      "expression": "`VAN_E1_M`"
+                    },
+                    {
+                      "name": "VAN_E2_M",
+                      "expression": "`VAN_E2_M`"
+                    },
+                    {
+                      "name": "VAN_TOTAL_M",
+                      "expression": "`VAN_TOTAL_M`"
+                    },
+                    {
+                      "name": "GANANCIA_VS_NO_ACTUAR_M",
+                      "expression": "`GANANCIA_VS_NO_ACTUAR_M`"
+                    },
+                    {
+                      "name": "CAPEX_E2_M",
+                      "expression": "`CAPEX_E2_M`"
+                    },
+                    {
+                      "name": "TIR_E2_PCT",
+                      "expression": "`TIR_E2_PCT`"
+                    },
+                    {
+                      "name": "RBC_E2",
+                      "expression": "`RBC_E2`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "data": {
+                "queryName": "main"
+              },
+              "encodings": {
+                "columns": [
+                  {
+                    "displayName": "Penetracion",
+                    "fieldName": "PENETRACION"
+                  },
+                  {
+                    "displayName": "Captura CNFL",
+                    "fieldName": "CAPTURA_CNFL"
+                  },
+                  {
+                    "displayName": "Clientes CNFL",
+                    "fieldName": "CLIENTES_CNFL"
+                  },
+                  {
+                    "displayName": "Clientes se autoinstalan",
+                    "fieldName": "CLIENTES_AUTOINSTALAN"
+                  },
+                  {
+                    "displayName": "VAN E1 (M)",
+                    "fieldName": "VAN_E1_M"
+                  },
+                  {
+                    "displayName": "VAN E2 (M)",
+                    "fieldName": "VAN_E2_M"
+                  },
+                  {
+                    "displayName": "VAN total (M)",
+                    "fieldName": "VAN_TOTAL_M"
+                  },
+                  {
+                    "displayName": "Ganancia vs no actuar (M)",
+                    "fieldName": "GANANCIA_VS_NO_ACTUAR_M"
+                  },
+                  {
+                    "displayName": "CAPEX E2 (M)",
+                    "fieldName": "CAPEX_E2_M"
+                  },
+                  {
+                    "displayName": "TIR E2 %",
+                    "fieldName": "TIR_E2_PCT"
+                  },
+                  {
+                    "displayName": "RBC E2",
+                    "fieldName": "RBC_E2"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Matriz penetracion x captura"
+              },
+              "version": 2,
+              "widgetType": "table"
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 10,
+            "width": 12,
+            "height": 9
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
+    },
+    {
+      "name": "clientes_pagina",
+      "displayName": "Clientes priorizados",
+      "layout": [
+        {
+          "widget": {
+            "name": "f_plan",
+            "queries": [
+              {
+                "name": "dashboards/01f1e53098091d609f1d55022a523697/datasets/01f1e530980a1067b1eefb3e802567d2_PLAN",
+                "query": {
+                  "datasetName": "clientes_detalle",
+                  "fields": [
+                    {
+                      "name": "PLAN",
+                      "expression": "`PLAN`"
+                    },
+                    {
+                      "name": "PLAN_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "dashboards/01f1e53098091d609f1d55022a523697/datasets/01f1e530980a105f9e663d2675c89db5_PLAN",
+                "query": {
+                  "datasetName": "clientes_mv",
+                  "fields": [
+                    {
+                      "name": "PLAN",
+                      "expression": "`PLAN`"
+                    },
+                    {
+                      "name": "PLAN_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "PLAN",
+                    "queryName": "dashboards/01f1e53098091d609f1d55022a523697/datasets/01f1e530980a1067b1eefb3e802567d2_PLAN"
+                  },
+                  {
+                    "fieldName": "PLAN",
+                    "queryName": "dashboards/01f1e53098091d609f1d55022a523697/datasets/01f1e530980a105f9e663d2675c89db5_PLAN"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "fields": [],
+                  "value": "Plan"
+                }
+              },
+              "version": 2,
+              "widgetType": "filter-multi-select"
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 4,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "bar_bess_optimo",
+            "queries": [
+              {
+                "name": "main",
+                "query": {
+                  "datasetName": "clientes_mv",
+                  "fields": [
+                    {
+                      "name": "BESS_ESCENARIO_OPTIMO",
+                      "expression": "`BESS_ESCENARIO_OPTIMO`"
+                    },
+                    {
+                      "name": "n",
+                      "expression": "MEASURE(`Clientes`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "data": {
+                "queryName": "main"
+              },
+              "encodings": {
+                "x": {
+                  "displayName": "BESS optimo",
+                  "fieldName": "BESS_ESCENARIO_OPTIMO",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "displayName": "Clientes",
+                  "fieldName": "n",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Clientes por BESS optimo"
+              },
+              "version": 3,
+              "widgetType": "bar"
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 0,
+            "width": 8,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "tbl_clientes",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "clientes_detalle",
+                  "fields": [
+                    {
+                      "name": "PRIORIDAD",
+                      "expression": "`PRIORIDAD`"
+                    },
+                    {
+                      "name": "NISE",
+                      "expression": "`NISE`"
+                    },
+                    {
+                      "name": "CLIENTE",
+                      "expression": "`CLIENTE`"
+                    },
+                    {
+                      "name": "ACTIVIDAD",
+                      "expression": "`ACTIVIDAD`"
+                    },
+                    {
+                      "name": "PLAN",
+                      "expression": "`PLAN`"
+                    },
+                    {
+                      "name": "KWP",
+                      "expression": "`KWP`"
+                    },
+                    {
+                      "name": "E1_MARGEN_ANUAL_M",
+                      "expression": "`E1_MARGEN_ANUAL_M`"
+                    },
+                    {
+                      "name": "E1_VAN_M",
+                      "expression": "`E1_VAN_M`"
+                    },
+                    {
+                      "name": "E2_VAN_M",
+                      "expression": "`E2_VAN_M`"
+                    },
+                    {
+                      "name": "BESS_OPTIMO",
+                      "expression": "`BESS_OPTIMO`"
+                    },
+                    {
+                      "name": "BESS_VAN_M",
+                      "expression": "`BESS_VAN_M`"
+                    },
+                    {
+                      "name": "E2B_CAPEX_M",
+                      "expression": "`E2B_CAPEX_M`"
+                    },
+                    {
+                      "name": "E2B_VAN_M",
+                      "expression": "`E2B_VAN_M`"
+                    },
+                    {
+                      "name": "E2B_TIR_PCT",
+                      "expression": "`E2B_TIR_PCT`"
+                    },
+                    {
+                      "name": "E2B_RBC",
+                      "expression": "`E2B_RBC`"
+                    },
+                    {
+                      "name": "E2B_VIABLE",
+                      "expression": "`E2B_VIABLE`"
+                    },
+                    {
+                      "name": "VALOR_ACTUAR_PRIMERO_M",
+                      "expression": "`VALOR_ACTUAR_PRIMERO_M`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "value": "Clientes ordenados por VAN E2 solar + BESS (M CRC)",
+                  "fields": []
+                }
+              },
+              "version": 2,
+              "freezeUpToColumnNumber": 3,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "PRIORIDAD",
+                    "displayName": "Prioridad"
+                  },
+                  {
+                    "fieldName": "NISE",
+                    "displayName": "NISE"
+                  },
+                  {
+                    "fieldName": "CLIENTE",
+                    "useForSearch": true,
+                    "displayName": "Cliente"
+                  },
+                  {
+                    "fieldName": "ACTIVIDAD",
+                    "displayName": "Actividad"
+                  },
+                  {
+                    "fieldName": "PLAN",
+                    "displayName": "Plan"
+                  },
+                  {
+                    "fieldName": "KWP",
+                    "displayName": "kWp"
+                  },
+                  {
+                    "fieldName": "E1_MARGEN_ANUAL_M",
+                    "displayName": "E1 margen anual"
+                  },
+                  {
+                    "fieldName": "E1_VAN_M",
+                    "displayName": "E1 VAN"
+                  },
+                  {
+                    "fieldName": "E2_VAN_M",
+                    "displayName": "E2 solar VAN"
+                  },
+                  {
+                    "fieldName": "BESS_OPTIMO",
+                    "displayName": "BESS optimo"
+                  },
+                  {
+                    "fieldName": "BESS_VAN_M",
+                    "displayName": "BESS VAN"
+                  },
+                  {
+                    "fieldName": "E2B_CAPEX_M",
+                    "displayName": "CAPEX E2"
+                  },
+                  {
+                    "fieldName": "E2B_VAN_M",
+                    "displayName": "E2 VAN"
+                  },
+                  {
+                    "fieldName": "E2B_TIR_PCT",
+                    "displayName": "TIR %"
+                  },
+                  {
+                    "fieldName": "E2B_RBC",
+                    "displayName": "RBC"
+                  },
+                  {
+                    "fieldName": "E2B_VIABLE",
+                    "displayName": "Viable"
+                  },
+                  {
+                    "fieldName": "VALOR_ACTUAR_PRIMERO_M",
+                    "displayName": "Valor de actuar primero"
+                  }
+                ]
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 5,
+            "width": 12,
+            "height": 12
+          }
+        },
+        {
+          "widget": {
+            "name": "f_tipo_dia_curva",
+            "queries": [
+              {
+                "name": "dashboards/01f1e53069f91859a67519ff5b00211d/datasets/01f1e7665de41709b8c60979617e25e6_TIPO_DIA",
+                "query": {
+                  "datasetName": "curvas_cliente",
+                  "fields": [
+                    {
+                      "name": "TIPO_DIA",
+                      "expression": "`TIPO_DIA`"
+                    },
+                    {
+                      "name": "TIPO_DIA_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "selection": {
+                "defaultSelection": {
+                  "values": {
+                    "dataType": "STRING",
+                    "values": [
+                      {
+                        "value": "laboral"
+                      }
+                    ]
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Tipo de dia"
+              },
+              "widgetType": "filter-single-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "TIPO_DIA",
+                    "queryName": "dashboards/01f1e53069f91859a67519ff5b00211d/datasets/01f1e7665de41709b8c60979617e25e6_TIPO_DIA"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 17,
+            "width": 4,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "l_curva_cliente",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "curvas_cliente",
+                  "fields": [
+                    {
+                      "name": "SERIE",
+                      "expression": "`SERIE`"
+                    },
+                    {
+                      "name": "HORA_DEC",
+                      "expression": "`HORA_DEC`"
+                    },
+                    {
+                      "name": "avg(KW)",
+                      "expression": "AVG(`KW`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "value": "Curva Q3 del cliente: base, solar, neta con solar y con BESS (kW, 15 min)",
+                  "fields": []
+                }
+              },
+              "version": 3,
+              "annotations": [
+                {
+                  "type": "horizontal-line",
+                  "encodings": {
+                    "y": {
+                      "dataValue": "0",
+                      "dataType": "DOUBLE"
+                    }
+                  }
+                }
+              ],
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "HORA_DEC",
+                  "displayName": "Hora del dia",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "y": {
+                  "fieldName": "avg(KW)",
+                  "displayName": "kW",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "SERIE",
+                  "displayName": "Serie",
+                  "scale": {
+                    "type": "categorical",
+                    "mappings": [
+                      {
+                        "value": "1 Demanda base",
+                        "color": "#7F8C8D"
+                      },
+                      {
+                        "value": "2 Generacion solar",
+                        "color": "#F1C40F"
+                      },
+                      {
+                        "value": "3 Neta con solar (red)",
+                        "color": "#E67E22"
+                      },
+                      {
+                        "value": "4 Neta con solar + BESS (red)",
+                        "color": "#2272B4"
+                      },
+                      {
+                        "value": "5 BESS (+descarga / -carga)",
+                        "color": "#27AE60"
+                      }
+                    ]
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 19,
+            "width": 8,
+            "height": 12
+          }
+        },
+        {
+          "widget": {
+            "name": "f_mes_curva",
+            "queries": [
+              {
+                "name": "dashboards/01f1e53069f91859a67519ff5b00211d/datasets/01f1e7665de41709b8c60979617e25e6_MES_TXT",
+                "query": {
+                  "datasetName": "curvas_cliente",
+                  "fields": [
+                    {
+                      "name": "MES_TXT",
+                      "expression": "`MES_TXT`"
+                    },
+                    {
+                      "name": "MES_TXT_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "selection": {
+                "defaultSelection": {
+                  "values": {
+                    "dataType": "STRING",
+                    "values": [
+                      {
+                        "value": "2026-06"
+                      }
+                    ]
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Mes"
+              },
+              "widgetType": "filter-single-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "MES_TXT",
+                    "queryName": "dashboards/01f1e53069f91859a67519ff5b00211d/datasets/01f1e7665de41709b8c60979617e25e6_MES_TXT"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 17,
+            "width": 4,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "f_esc_bess_curva",
+            "queries": [
+              {
+                "name": "dashboards/01f1e53069f91859a67519ff5b00211d/datasets/01f1e7665de41709b8c60979617e25e6_ESCENARIO_BATERIA",
+                "query": {
+                  "datasetName": "curvas_cliente",
+                  "fields": [
+                    {
+                      "name": "ESCENARIO_BATERIA",
+                      "expression": "`ESCENARIO_BATERIA`"
+                    },
+                    {
+                      "name": "ESCENARIO_BATERIA_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "selection": {
+                "defaultSelection": {
+                  "values": {
+                    "dataType": "STRING",
+                    "values": [
+                      {
+                        "value": "BESS_25PCT_2H"
+                      }
+                    ]
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Escenario BESS"
+              },
+              "widgetType": "filter-single-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "ESCENARIO_BATERIA",
+                    "queryName": "dashboards/01f1e53069f91859a67519ff5b00211d/datasets/01f1e7665de41709b8c60979617e25e6_ESCENARIO_BATERIA"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 8,
+            "y": 17,
+            "width": 4,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "b_clientes_curva",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "curvas_cliente",
+                  "fields": [
+                    {
+                      "name": "BESS_OPTIMO",
+                      "expression": "`BESS_OPTIMO`"
+                    },
+                    {
+                      "name": "max(E2B_VAN_M)",
+                      "expression": "MAX(`E2B_VAN_M`)"
+                    },
+                    {
+                      "name": "CLIENTE_NISE",
+                      "expression": "`CLIENTE_NISE`"
+                    }
+                  ],
+                  "cubeGroupingSets": {
+                    "sets": [
+                      {
+                        "fieldNames": [
+                          "BESS_OPTIMO"
+                        ]
+                      },
+                      {
+                        "fieldNames": [
+                          "CLIENTE_NISE"
+                        ]
+                      }
+                    ]
+                  },
+                  "disaggregated": false,
+                  "orders": [
+                    {
+                      "direction": "DESC",
+                      "expression": "MAX(`E2B_VAN_M`)"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": "Clic en un cliente para ver su curva (VAN E2 solar + BESS, M CRC; color = BESS optimo)"
+              },
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "max(E2B_VAN_M)",
+                  "displayName": "VAN E2 solar + BESS (M CRC)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "y": {
+                  "fieldName": "CLIENTE_NISE",
+                  "displayName": "Cliente (NISE)",
+                  "scale": {
+                    "type": "categorical",
+                    "categorySize": {
+                      "type": "number-of-categories",
+                      "number": 25
+                    },
+                    "sort": {
+                      "by": "measure-reversed",
+                      "measure": {
+                        "fieldName": "max(E2B_VAN_M)"
+                      }
+                    }
+                  }
+                },
+                "color": {
+                  "fieldName": "BESS_OPTIMO",
+                  "displayName": "BESS optimo",
+                  "scale": {
+                    "type": "categorical",
+                    "mappings": [
+                      {
+                        "value": "BESS_25PCT_2H",
+                        "color": "#2272B4"
+                      },
+                      {
+                        "value": "BESS_50PCT_2H",
+                        "color": "#27AE60"
+                      },
+                      {
+                        "value": "BESS_50PCT_4H",
+                        "color": "#8E6BBF"
+                      },
+                      {
+                        "value": "BESS_100PCT_2H",
+                        "color": "#E67E22"
+                      },
+                      {
+                        "value": "BESS_100PCT_4H",
+                        "color": "#C0392B"
+                      },
+                      {
+                        "value": "SIN_BESS",
+                        "color": "#95A5A6"
+                      }
+                    ]
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 19,
+            "width": 4,
+            "height": 12
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
+    },
+    {
+      "name": "bess_pagina",
+      "displayName": "Baterias",
+      "layout": [
+        {
+          "widget": {
+            "name": "bar_bess_van",
+            "queries": [
+              {
+                "name": "main",
+                "query": {
+                  "datasetName": "bess",
+                  "fields": [
+                    {
+                      "name": "ESCENARIO_BATERIA",
+                      "expression": "`ESCENARIO_BATERIA`"
+                    },
+                    {
+                      "name": "van",
+                      "expression": "SUM(`VAN_M`)"
+                    },
+                    {
+                      "name": "van_pos",
+                      "expression": "SUM(`VAN_SOLO_POSITIVOS_M`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "data": {
+                "queryName": "main"
+              },
+              "encodings": {
+                "x": {
+                  "displayName": "Escenario",
+                  "fieldName": "ESCENARIO_BATERIA",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fields": [
+                    {
+                      "displayName": "VAN todos los clientes",
+                      "fieldName": "van"
+                    },
+                    {
+                      "displayName": "VAN solo clientes con VAN > 0",
+                      "fieldName": "van_pos"
+                    }
+                  ],
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "VAN BESS por escenario, despacho optimo (M CRC)"
+              },
+              "mark": {
+                "layout": "group"
+              },
+              "version": 3,
+              "widgetType": "bar"
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 6,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "bar_bess_ahorro",
+            "queries": [
+              {
+                "name": "main",
+                "query": {
+                  "datasetName": "bess",
+                  "fields": [
+                    {
+                      "name": "ESCENARIO_BATERIA",
+                      "expression": "`ESCENARIO_BATERIA`"
+                    },
+                    {
+                      "name": "e",
+                      "expression": "SUM(`AHORRO_ENERGIA_M`)"
+                    },
+                    {
+                      "name": "p",
+                      "expression": "SUM(`AHORRO_POTENCIA_M`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "data": {
+                "queryName": "main"
+              },
+              "encodings": {
+                "x": {
+                  "displayName": "Escenario",
+                  "fieldName": "ESCENARIO_BATERIA",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fields": [
+                    {
+                      "displayName": "Energia",
+                      "fieldName": "e"
+                    },
+                    {
+                      "displayName": "Potencia",
+                      "fieldName": "p"
+                    }
+                  ],
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Ahorro anual BESS: energia vs potencia (M CRC)"
+              },
+              "mark": {
+                "layout": "stack"
+              },
+              "version": 3,
+              "widgetType": "bar"
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 0,
+            "width": 6,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "tbl_bess",
+            "queries": [
+              {
+                "name": "main",
+                "query": {
+                  "datasetName": "bess",
+                  "fields": [
+                    {
+                      "name": "ESCENARIO_BATERIA",
+                      "expression": "`ESCENARIO_BATERIA`"
+                    },
+                    {
+                      "name": "CLIENTES_VAN_POSITIVO",
+                      "expression": "`CLIENTES_VAN_POSITIVO`"
+                    },
+                    {
+                      "name": "CAPACIDAD_MWH",
+                      "expression": "`CAPACIDAD_MWH`"
+                    },
+                    {
+                      "name": "CAPEX_M",
+                      "expression": "`CAPEX_M`"
+                    },
+                    {
+                      "name": "VAN_M",
+                      "expression": "`VAN_M`"
+                    },
+                    {
+                      "name": "TIR_PCT",
+                      "expression": "`TIR_PCT`"
+                    },
+                    {
+                      "name": "RBC",
+                      "expression": "`RBC`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "data": {
+                "queryName": "main"
+              },
+              "encodings": {
+                "columns": [
+                  {
+                    "displayName": "Escenario",
+                    "fieldName": "ESCENARIO_BATERIA"
+                  },
+                  {
+                    "displayName": "Clientes VAN > 0",
+                    "fieldName": "CLIENTES_VAN_POSITIVO"
+                  },
+                  {
+                    "displayName": "Capacidad (MWh)",
+                    "fieldName": "CAPACIDAD_MWH"
+                  },
+                  {
+                    "displayName": "CAPEX (M)",
+                    "fieldName": "CAPEX_M"
+                  },
+                  {
+                    "displayName": "VAN (M)",
+                    "fieldName": "VAN_M"
+                  },
+                  {
+                    "displayName": "TIR %",
+                    "fieldName": "TIR_PCT"
+                  },
+                  {
+                    "displayName": "RBC",
+                    "fieldName": "RBC"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Indicadores BESS por escenario"
+              },
+              "version": 2,
+              "widgetType": "table"
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 7,
+            "width": 12,
+            "height": 5
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
+    },
+    {
+      "name": "supuestos_pagina",
+      "displayName": "Supuestos y calidad",
+      "layout": [
+        {
+          "widget": {
+            "name": "tbl_supuestos",
+            "queries": [
+              {
+                "name": "main",
+                "query": {
+                  "datasetName": "supuestos",
+                  "fields": [
+                    {
+                      "name": "TIPO",
+                      "expression": "`TIPO`"
+                    },
+                    {
+                      "name": "NOMBRE",
+                      "expression": "`NOMBRE`"
+                    },
+                    {
+                      "name": "VALOR",
+                      "expression": "`VALOR`"
+                    },
+                    {
+                      "name": "UNIDAD",
+                      "expression": "`UNIDAD`"
+                    },
+                    {
+                      "name": "FUENTE",
+                      "expression": "`FUENTE`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "data": {
+                "queryName": "main"
+              },
+              "encodings": {
+                "columns": [
+                  {
+                    "displayName": "Tipo",
+                    "fieldName": "TIPO"
+                  },
+                  {
+                    "displayName": "Nombre",
+                    "fieldName": "NOMBRE"
+                  },
+                  {
+                    "displayName": "Valor",
+                    "fieldName": "VALOR"
+                  },
+                  {
+                    "displayName": "Unidad",
+                    "fieldName": "UNIDAD"
+                  },
+                  {
+                    "displayName": "Fuente",
+                    "fieldName": "FUENTE"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Parametros y tarifas (con fuente)"
+              },
+              "version": 2,
+              "widgetType": "table"
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 10
+          }
+        },
+        {
+          "widget": {
+            "name": "tbl_calidad",
+            "queries": [
+              {
+                "name": "main",
+                "query": {
+                  "datasetName": "calidad",
+                  "fields": [
+                    {
+                      "name": "VALIDACION",
+                      "expression": "`VALIDACION`"
+                    },
+                    {
+                      "name": "DESCRIPCION",
+                      "expression": "`DESCRIPCION`"
+                    },
+                    {
+                      "name": "REGISTROS_AFECTADOS",
+                      "expression": "`REGISTROS_AFECTADOS`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "data": {
+                "queryName": "main"
+              },
+              "encodings": {
+                "columns": [
+                  {
+                    "displayName": "Validacion",
+                    "fieldName": "VALIDACION"
+                  },
+                  {
+                    "displayName": "Descripcion",
+                    "fieldName": "DESCRIPCION"
+                  },
+                  {
+                    "displayName": "Registros afectados",
+                    "fieldName": "REGISTROS_AFECTADOS"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Validaciones del modelo (0 = OK)"
+              },
+              "version": 2,
+              "widgetType": "table"
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 10,
+            "width": 12,
+            "height": 6
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
+    }
+  ]
+}

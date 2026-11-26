@@ -1,0 +1,18 @@
+resources:
+  pipelines:
+    financiero_solar:
+      name: TMT_TMTB_Solar_Financiero
+
+      catalog: ${var.output_catalog}
+      schema: ${var.output_schema}
+
+      serverless: true
+      continuous: false
+
+      configuration:
+        project.output_catalog: ${var.output_catalog}
+        project.output_schema: ${var.output_schema}
+
+      libraries:
+        - file:
+            path: ../../src/financiero/financiero_solar.py
